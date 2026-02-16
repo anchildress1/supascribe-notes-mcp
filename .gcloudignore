@@ -40,6 +40,14 @@ vitest.config.ts
 .secretlintignore
 .secretlintrc.json
 
+# Local AI/editor settings
+.claude/
+.mcp/
+.mcp.json
+.vscode/
+.idea/
+*.swp
+
 # Local helper scripts not used in container build
 deploy.sh
 verify-sse.sh

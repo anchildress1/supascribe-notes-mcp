@@ -29,6 +29,8 @@ import { renderHelpPage } from './views/help-view.js';
 import { createOpenApiSpec } from './lib/openapi.js';
 import cors from 'cors';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import { ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { zodToJsonSchema } from 'zod-to-json-schema';
 
 function sendToolResult(res: express.Response, result: CallToolResult): void {
   if (result.isError) {
@@ -319,12 +321,74 @@ export function createMcpServer(supabase: SupabaseClient, serverVersion = '1.0.0
     version: serverVersion,
   });
 
-  server.registerTool(
+  // ChatGPT Apps SDK can be picky about schema keywords emitted by converters.
+  // We keep MCP tool validation as-is (Zod via SDK), but sanitize schemas returned by `tools/list`
+  // to maximize compatibility with the chat UI tool picker.
+  const stripJsonSchemaKeywords = (value: unknown): unknown => {
+    if (!value || typeof value !== 'object') return value;
+    if (Array.isArray(value)) return value.map(stripJsonSchemaKeywords);
+
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (k === '$schema' || k === 'default') continue;
+      out[k] = stripJsonSchemaKeywords(v);
+    }
+    return out;
+  };
+
+  const toolListForChatGPT: Array<Record<string, unknown>> = [];
+  const recordToolForChatGPT = (tool: {
+    name: string;
+    title?: string;
+    description?: string;
+    inputSchema?: unknown;
+    annotations?: unknown;
+    _meta?: unknown;
+  }) => {
+    if (!tool.title || !tool.description) return;
+    if (!tool.inputSchema) return;
+
+    const inputSchema = stripJsonSchemaKeywords(
+      zodToJsonSchema(tool.inputSchema as never, {
+        target: 'openApi3',
+        $refStrategy: 'none',
+        pipeStrategy: 'input',
+        strictUnions: true,
+      }),
+    );
+
+    toolListForChatGPT.push({
+      name: tool.name,
+      title: tool.title,
+      description: tool.description,
+      inputSchema,
+      annotations: tool.annotations,
+      _meta: tool._meta,
+      execution: { taskSupport: 'forbidden' },
+    });
+  };
+
+  const registerToolAndRecord = <TArgs, TResult>(
+    name: string,
+    config: {
+      title?: string;
+      description?: string;
+      inputSchema?: unknown;
+      annotations?: unknown;
+      _meta?: unknown;
+    },
+    cb: (args: TArgs) => Promise<TResult>,
+  ) => {
+    server.registerTool(name, config, cb as never);
+    recordToolForChatGPT({ name, ...config });
+  };
+
+  registerToolAndRecord(
     'health',
     {
       title: 'Health Check',
       description: 'Check server and Supabase connectivity status',
-      inputSchema: {},
+      inputSchema: EmptyInputSchema,
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -337,7 +401,7 @@ export function createMcpServer(supabase: SupabaseClient, serverVersion = '1.0.0
     async () => handleHealth(supabase),
   );
 
-  server.registerTool(
+  registerToolAndRecord(
     'write_cards',
     {
       title: 'Write Index Cards',
@@ -356,7 +420,7 @@ export function createMcpServer(supabase: SupabaseClient, serverVersion = '1.0.0
     async ({ cards }: WriteCardsInput) => handleWriteCards(supabase, cards),
   );
 
-  server.registerTool(
+  registerToolAndRecord(
     'lookup_card_by_id',
     {
       title: 'Lookup Cards by ID',
@@ -375,7 +439,7 @@ export function createMcpServer(supabase: SupabaseClient, serverVersion = '1.0.0
     async ({ ids }: CardIdInput) => handleLookupCardsById(supabase, ids),
   );
 
-  server.registerTool(
+  registerToolAndRecord(
     'lookup_categories',
     {
       title: 'Lookup Categories',
@@ -394,7 +458,7 @@ export function createMcpServer(supabase: SupabaseClient, serverVersion = '1.0.0
     async () => handleLookupCategories(supabase),
   );
 
-  server.registerTool(
+  registerToolAndRecord(
     'lookup_projects',
     {
       title: 'Lookup Projects',
@@ -413,7 +477,7 @@ export function createMcpServer(supabase: SupabaseClient, serverVersion = '1.0.0
     async () => handleLookupProjects(supabase),
   );
 
-  server.registerTool(
+  registerToolAndRecord(
     'lookup_tags',
     {
       title: 'Lookup Tags',
@@ -432,7 +496,7 @@ export function createMcpServer(supabase: SupabaseClient, serverVersion = '1.0.0
     async () => handleLookupTags(supabase),
   );
 
-  server.registerTool(
+  registerToolAndRecord(
     'search_cards',
     {
       title: 'Search Cards',
@@ -450,6 +514,22 @@ export function createMcpServer(supabase: SupabaseClient, serverVersion = '1.0.0
     },
     async (filters: SearchCardsInput) => handleSearchCards(supabase, filters),
   );
+
+  // Replace `tools/list` with a schema-sanitized version for ChatGPT compatibility.
+  // In unit tests, McpServer is mocked and may not expose `.server`.
+  type ProtocolServer = {
+    setRequestHandler: (
+      requestSchema: typeof ListToolsRequestSchema,
+      handler: () => { tools: Array<Record<string, unknown>> },
+    ) => void;
+  };
+
+  const protocolServer = (server as unknown as { server?: ProtocolServer }).server;
+  if (protocolServer?.setRequestHandler) {
+    protocolServer.setRequestHandler(ListToolsRequestSchema, () => ({
+      tools: toolListForChatGPT,
+    }));
+  }
 
   return server;
 }
