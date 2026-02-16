@@ -23,7 +23,7 @@ test-coverage:
 secrets-scan:
 	npx secretlint "**/*"
 
-ai-checks: format lint test-coverage secrets-scan
+ai-checks: format lint build test-coverage secrets-scan
 	@echo "✅ All checks passed"
 
 build:

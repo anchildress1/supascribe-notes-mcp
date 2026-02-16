@@ -28,8 +28,9 @@ import { renderAuthPage } from './views/auth-view.js';
 import { renderHelpPage } from './views/help-view.js';
 import { createOpenApiSpec } from './lib/openapi.js';
 import cors from 'cors';
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 import { ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import type { AnySchema, ZodRawShapeCompat } from '@modelcontextprotocol/sdk/server/zod-compat.js';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 
 function sendToolResult(res: express.Response, result: CallToolResult): void {
@@ -373,9 +374,9 @@ export function createMcpServer(supabase: SupabaseClient, serverVersion = '1.0.0
     config: {
       title?: string;
       description?: string;
-      inputSchema?: unknown;
-      annotations?: unknown;
-      _meta?: unknown;
+      inputSchema?: AnySchema | ZodRawShapeCompat;
+      annotations?: ToolAnnotations;
+      _meta?: Record<string, unknown>;
     },
     cb: (args: TArgs) => Promise<TResult>,
   ) => {
