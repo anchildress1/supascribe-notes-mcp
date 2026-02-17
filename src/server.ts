@@ -382,7 +382,6 @@ export function createMcpServer(supabase: SupabaseClient, serverVersion = '1.0.0
       inputSchema,
       annotations: tool.annotations,
       _meta: tool._meta,
-      execution: { taskSupport: 'forbidden' },
     });
   };
 
