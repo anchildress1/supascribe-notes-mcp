@@ -192,23 +192,8 @@ export function createApp(config: Config): express.Express {
 
   const handleMcpRequest = async (req: express.Request, res: express.Response) => {
     const sessionIdHeader = req.header('mcp-session-id');
-    const jsonRpcMethod =
-      req.body && typeof req.body === 'object' && 'method' in req.body
-        ? String((req.body as { method?: unknown }).method ?? '')
-        : undefined;
     let transport = sessionIdHeader ? transports.get(sessionIdHeader) : undefined;
     const isNewTransport = !transport;
-
-    logger.info(
-      {
-        route: req.path,
-        method: req.method,
-        sessionId: sessionIdHeader,
-        jsonRpcMethod,
-        isNewTransport,
-      },
-      'Handling MCP request',
-    );
 
     if (sessionIdHeader && !transport) {
       logger.warn(
@@ -558,16 +543,9 @@ export function createMcpServer(supabase: SupabaseClient, serverVersion = '1.0.0
 
   const protocolServer = (server as unknown as { server?: ProtocolServer }).server;
   if (protocolServer?.setRequestHandler) {
-    protocolServer.setRequestHandler(ListToolsRequestSchema, () => {
-      logger.info(
-        {
-          toolCount: toolListForChatGPT.length,
-          toolNames: toolListForChatGPT.map((tool) => tool.name),
-        },
-        'Responding to tools/list',
-      );
-      return { tools: toolListForChatGPT };
-    });
+    protocolServer.setRequestHandler(ListToolsRequestSchema, () => ({
+      tools: toolListForChatGPT,
+    }));
   }
 
   return server;
