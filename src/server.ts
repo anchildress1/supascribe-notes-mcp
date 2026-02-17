@@ -1,6 +1,6 @@
 import express from 'express';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import {
   WriteCardsInputSchema,
   CardIdInputSchema,
@@ -32,6 +32,7 @@ import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/
 import { ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import type { AnySchema, ZodRawShapeCompat } from '@modelcontextprotocol/sdk/server/zod-compat.js';
 import { zodToJsonSchema } from 'zod-to-json-schema';
+import { randomUUID } from 'node:crypto';
 
 function sendToolResult(res: express.Response, result: CallToolResult): void {
   if (result.isError) {
@@ -137,8 +138,19 @@ export function createApp(config: Config): express.Express {
     });
   });
 
-  // SSE specific OAuth Protected Resource Metadata
+  // MCP endpoint specific OAuth Protected Resource Metadata (legacy `/sse` path)
   app.get('/.well-known/oauth-protected-resource/sse', (_req, res) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.json({
+      resource: config.supabaseUrl,
+      authorization_servers: [`${config.supabaseUrl}/auth/v1`],
+      scopes_supported: [],
+      bearer_methods_supported: ['header'],
+    });
+  });
+
+  app.get('/.well-known/oauth-protected-resource/mcp', (_req, res) => {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
     res.set('Pragma', 'no-cache');
     res.json({
@@ -158,48 +170,71 @@ export function createApp(config: Config): express.Express {
   // Auth Middleware
   const authenticate = createAuthMiddleware(authVerifier, config.publicUrl);
 
-  // Store active transports
-  const transports = new Map<string, SSEServerTransport>();
+  // Store active streamable HTTP transports by MCP session ID.
+  const transports = new Map<string, StreamableHTTPServerTransport>();
 
-  // SSE endpoint
-  app.use('/sse', authenticate, async (req, res) => {
-    logger.info('New SSE connection attempt');
-
-    // Create a new transport for this connection
-    // The endpoint URL will be where clients send messages
-    const transport = new SSEServerTransport('/messages', res);
+  const createStreamableTransport = async (): Promise<StreamableHTTPServerTransport> => {
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: randomUUID,
+      onsessioninitialized: (sessionId) => {
+        transports.set(sessionId, transport);
+        logger.info({ sessionId }, 'MCP session initialized');
+      },
+      onsessionclosed: (sessionId) => {
+        transports.delete(sessionId);
+        logger.info({ sessionId }, 'MCP session closed');
+      },
+    });
     const server = createMcpServer(supabase, config.serverVersion);
+    await server.connect(transport);
+    return transport;
+  };
+
+  const handleMcpRequest = async (req: express.Request, res: express.Response) => {
+    const sessionIdHeader = req.header('mcp-session-id');
+    let transport = sessionIdHeader ? transports.get(sessionIdHeader) : undefined;
+    const isNewTransport = !transport;
+
+    if (sessionIdHeader && !transport) {
+      logger.warn(
+        { sessionId: sessionIdHeader, method: req.method },
+        'MCP request for unknown session',
+      );
+      res.status(404).json({
+        jsonrpc: '2.0',
+        error: { code: -32001, message: 'Session not found' },
+        id: null,
+      });
+      return;
+    }
 
     try {
-      // Connect first to ensure everything is set up
-      await server.connect(transport);
-
-      const sessionId = transport.sessionId;
-      transports.set(sessionId, transport);
-      logger.info({ sessionId }, 'SSE session initialized');
-
-      transport.onclose = () => {
-        transports.delete(sessionId);
-        logger.info({ sessionId }, 'SSE session closed');
-      };
-
-      // Start the transport - this keeps the connection open
-      // transport.start() is already called by server.connect(transport)
-      // so we don't need to call it again.
+      if (!transport) {
+        transport = await createStreamableTransport();
+      }
+      await transport.handleRequest(req, res, req.body);
     } catch (error) {
-      logger.error({ error }, 'Failed to initialize SSE session');
+      logger.error(
+        { error, sessionId: sessionIdHeader, method: req.method },
+        'Failed to handle MCP request',
+      );
       if (!res.headersSent) {
-        res.status(500);
-        res.setHeader('Content-Type', 'text/event-stream');
-        res.write(
-          `event: error\ndata: ${JSON.stringify({
-            error: 'Failed to initialize session',
-          })}\n\n`,
-        );
-        res.end();
+        res.status(500).json({
+          jsonrpc: '2.0',
+          error: { code: -32603, message: 'Internal error' },
+          id: null,
+        });
+      }
+    } finally {
+      // Invalid pre-init requests use a one-off transport and should not linger.
+      if (isNewTransport && transport && !transport.sessionId) {
+        await transport.close();
       }
     }
-  });
+  };
+
+  // Streamable HTTP MCP endpoints: `/mcp` is canonical, `/sse` kept as alias for existing app configs.
+  app.all(['/mcp', '/sse'], authenticate, handleMcpRequest);
 
   // ChatGPT Apps Action: Write Cards
   app.post('/api/write-cards', authenticate, async (req, res) => {
@@ -287,30 +322,12 @@ export function createApp(config: Config): express.Express {
     }
   });
 
-  // Messages endpoint
-  app.post('/messages', authenticate, async (req, res) => {
-    const sessionId = req.query.sessionId;
-
-    if (!sessionId || typeof sessionId !== 'string') {
-      res.status(400).send('Missing or invalid sessionId query parameter');
-      return;
-    }
-
-    const transport = transports.get(sessionId);
-    if (!transport) {
-      logger.warn({ sessionId }, 'Message received for unknown session');
-      res.status(404).send('Session not found');
-      return;
-    }
-
-    try {
-      await transport.handlePostMessage(req, res, req.body);
-    } catch (error) {
-      logger.error({ error, sessionId }, 'Error handling message');
-      if (!res.headersSent) {
-        res.status(500).json({ error: 'Internal server error' });
-      }
-    }
+  // Backward compatibility message for legacy SSE `/messages` route.
+  app.all('/messages', authenticate, (_req, res) => {
+    res.status(410).json({
+      error:
+        'Legacy SSE transport endpoint removed. Use Streamable HTTP endpoint at /mcp (or /sse alias).',
+    });
   });
 
   return app;

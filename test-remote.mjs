@@ -2,7 +2,7 @@ import { EventSource } from 'eventsource';
 global.EventSource = EventSource;
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { OpenAI } from 'openai';
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
@@ -91,8 +91,8 @@ async function main() {
   console.log('✅ Authenticated.');
 
   // 2. Connect MCP
-  const transport = new SSEClientTransport(new URL(MCP_SERVER_URL), {
-    eventSourceInit: {
+  const transport = new StreamableHTTPClientTransport(new URL(MCP_SERVER_URL), {
+    requestInit: {
       headers: { Authorization: `Bearer ${token}` },
     },
   });

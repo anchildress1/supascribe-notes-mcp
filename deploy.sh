@@ -108,6 +108,7 @@ gcloud run deploy "$SERVICE_NAME" \
     --project "$PROJECT_ID" \
     --allow-unauthenticated \
     --port "$PORT" \
+    --timeout=3600 \
     --set-env-vars "$ENV_VARS"
 
 # If it was a first deploy (or URL changed, unlikely), and we didn't set PUBLIC_URL, update it now
