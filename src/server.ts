@@ -34,6 +34,18 @@ import type { AnySchema, ZodRawShapeCompat } from '@modelcontextprotocol/sdk/ser
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { randomUUID } from 'node:crypto';
 
+export function stripJsonSchemaKeywords(value: unknown): unknown {
+  if (!value || typeof value !== 'object') return value;
+  if (Array.isArray(value)) return value.map(stripJsonSchemaKeywords);
+
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    if (k === '$schema' || k === 'default') continue;
+    out[k] = stripJsonSchemaKeywords(v);
+  }
+  return out;
+}
+
 function sendToolResult(res: express.Response, result: CallToolResult): void {
   if (result.isError) {
     const errorText = result.content[0].type === 'text' ? result.content[0].text : 'Unknown error';
@@ -98,11 +110,11 @@ export function createApp(config: Config): express.Express {
 
   // Root endpoint - User facing help page
   app.get('/', (req, res) => {
-    // Redirect to SSE endpoint if client prefers text/event-stream
+    // Redirect to MCP endpoint if client prefers text/event-stream
     // This helps MCP clients that are configured with the root URL
     const preferred = req.accepts(['html', 'text/event-stream']);
     if (preferred === 'text/event-stream') {
-      res.redirect(307, '/sse');
+      res.redirect(307, '/mcp');
       return;
     }
 
@@ -138,18 +150,6 @@ export function createApp(config: Config): express.Express {
     });
   });
 
-  // MCP endpoint specific OAuth Protected Resource Metadata (legacy `/sse` path)
-  app.get('/.well-known/oauth-protected-resource/sse', (_req, res) => {
-    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
-    res.set('Pragma', 'no-cache');
-    res.json({
-      resource: config.supabaseUrl,
-      authorization_servers: [`${config.supabaseUrl}/auth/v1`],
-      scopes_supported: [],
-      bearer_methods_supported: ['header'],
-    });
-  });
-
   app.get('/.well-known/oauth-protected-resource/mcp', (_req, res) => {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
     res.set('Pragma', 'no-cache');
@@ -162,7 +162,7 @@ export function createApp(config: Config): express.Express {
   });
 
   // Handle incorrect path appended by ChatGPT
-  app.get('/sse/auth/authorize', (req, res) => {
+  app.get('/mcp/auth/authorize', (req, res) => {
     const query = new URLSearchParams(req.query as unknown as Record<string, string>).toString();
     res.redirect(`/auth/authorize?${query}`);
   });
@@ -186,8 +186,20 @@ export function createApp(config: Config): express.Express {
       },
     });
     const server = createMcpServer(supabase, config.serverVersion);
-    await server.connect(transport);
-    return transport;
+    try {
+      await server.connect(transport);
+      return transport;
+    } catch (error) {
+      try {
+        await transport.close();
+      } catch (closeError) {
+        logger.warn(
+          { error: closeError },
+          'Failed to close transport after server.connect failure',
+        );
+      }
+      throw error;
+    }
   };
 
   const handleMcpRequest = async (req: express.Request, res: express.Response) => {
@@ -233,8 +245,8 @@ export function createApp(config: Config): express.Express {
     }
   };
 
-  // Streamable HTTP MCP endpoints: `/mcp` is canonical, `/sse` kept as alias for existing app configs.
-  app.all(['/mcp', '/sse'], authenticate, handleMcpRequest);
+  // Streamable HTTP MCP endpoint.
+  app.all('/mcp', authenticate, handleMcpRequest);
 
   // ChatGPT Apps Action: Write Cards
   app.post('/api/write-cards', authenticate, async (req, res) => {
@@ -322,14 +334,6 @@ export function createApp(config: Config): express.Express {
     }
   });
 
-  // Backward compatibility message for legacy SSE `/messages` route.
-  app.all('/messages', authenticate, (_req, res) => {
-    res.status(410).json({
-      error:
-        'Legacy SSE transport endpoint removed. Use Streamable HTTP endpoint at /mcp (or /sse alias).',
-    });
-  });
-
   return app;
 }
 
@@ -338,21 +342,6 @@ export function createMcpServer(supabase: SupabaseClient, serverVersion = '1.0.0
     name: 'supascribe-notes-mcp',
     version: serverVersion,
   });
-
-  // ChatGPT Apps SDK can be picky about schema keywords emitted by converters.
-  // We keep MCP tool validation as-is (Zod via SDK), but sanitize schemas returned by `tools/list`
-  // to maximize compatibility with the chat UI tool picker.
-  const stripJsonSchemaKeywords = (value: unknown): unknown => {
-    if (!value || typeof value !== 'object') return value;
-    if (Array.isArray(value)) return value.map(stripJsonSchemaKeywords);
-
-    const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      if (k === '$schema' || k === 'default') continue;
-      out[k] = stripJsonSchemaKeywords(v);
-    }
-    return out;
-  };
 
   const toolListForChatGPT: Array<Record<string, unknown>> = [];
   const recordToolForChatGPT = (tool: {
@@ -363,8 +352,20 @@ export function createMcpServer(supabase: SupabaseClient, serverVersion = '1.0.0
     annotations?: unknown;
     _meta?: unknown;
   }) => {
-    if (!tool.title || !tool.description) return;
-    if (!tool.inputSchema) return;
+    if (!tool.title || !tool.description) {
+      logger.warn(
+        { toolName: tool.name },
+        'Skipping tool in ChatGPT tools/list output: missing title or description',
+      );
+      return;
+    }
+    if (!tool.inputSchema) {
+      logger.warn(
+        { toolName: tool.name },
+        'Skipping tool in ChatGPT tools/list output: missing inputSchema',
+      );
+      return;
+    }
 
     const inputSchema = stripJsonSchemaKeywords(
       zodToJsonSchema(tool.inputSchema as never, {
@@ -546,6 +547,10 @@ export function createMcpServer(supabase: SupabaseClient, serverVersion = '1.0.0
     protocolServer.setRequestHandler(ListToolsRequestSchema, () => ({
       tools: toolListForChatGPT,
     }));
+  } else {
+    logger.warn(
+      'MCP tools/list override could not be installed; MCP SDK internals may have changed',
+    );
   }
 
   return server;

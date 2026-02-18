@@ -143,7 +143,7 @@ The initialize response returns `Mcp-Session-Id` in response headers. Use that h
 
 To fully test the MCP functionality, configure your MCP client to connect to the Streamable HTTP endpoint:
 
-- **URL**: `$SERVICE_URL/mcp` (or `/sse` legacy alias)
+- **URL**: `$SERVICE_URL/mcp`
 - **Auth**: Use the standard OAuth 2.1 flow supported by your client, pointing to your Supabase project's auth endpoints.
 
 ## Card Shape

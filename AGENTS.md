@@ -9,7 +9,7 @@ not a Custom GPT "Actions-only" integration.
 
 Implications:
 
-- The app connects to a **remote MCP server** (supported transports: **SSE** or **streaming HTTP**).
+- The app connects to a **remote MCP server** using **streaming HTTP** transport.
 - ChatGPT reads tools via MCP `tools/list`. Each tool definition must include:
   - `title`
   - `description`

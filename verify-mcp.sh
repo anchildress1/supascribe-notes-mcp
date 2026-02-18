@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# verify-sse.sh - Verify Streamable HTTP MCP flow on /sse (legacy alias)
+# verify-mcp.sh - Verify Streamable HTTP MCP flow on /mcp
 
 if [ -z "$1" ]; then
-  echo "Usage: ./verify-sse.sh <SUPABASE_ACCESS_TOKEN>"
+  echo "Usage: ./verify-mcp.sh <SUPABASE_ACCESS_TOKEN>"
   echo ""
   echo "  Example:"
-  echo "    ./verify-sse.sh eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  echo "    ./verify-mcp.sh eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
   echo ""
   echo "  To get a token manually:"
   echo "    1. Open your app/site in a browser where you are logged in"
@@ -16,7 +16,7 @@ if [ -z "$1" ]; then
 fi
 
 TOKEN=$1
-URL=${2:-"http://localhost:8080/sse"}
+URL=${2:-"http://localhost:8080/mcp"}
 
 echo "Testing Streamable HTTP MCP flow against $URL..."
 echo "-------------------------------------------------"

@@ -34,6 +34,9 @@ vi.mock('@modelcontextprotocol/sdk/server/mcp.js', () => ({
     connect: vi.fn().mockImplementation(async (transport) => {
       await transport.start();
     }),
+    server: {
+      setRequestHandler: vi.fn(),
+    },
   })),
 }));
 
@@ -68,10 +71,10 @@ describe('Server Error Handling', () => {
     app = createApp(testConfig);
   });
 
-  it('POST /sse initializes streamable transport and calls start exactly once', async () => {
+  it('POST /mcp initializes streamable transport and calls start exactly once', async () => {
     const { res } = await invokeApp(app, {
       method: 'POST',
-      url: '/sse',
+      url: '/mcp',
       headers: {
         accept: 'application/json, text/event-stream',
         'content-type': 'application/json',
@@ -94,12 +97,12 @@ describe('Server Error Handling', () => {
     expect(mocks.handleRequest).toHaveBeenCalledTimes(1);
   });
 
-  it('POST /sse returns 500 if transport start fails', async () => {
+  it('POST /mcp returns 500 if transport start fails and closes transport', async () => {
     mocks.start.mockRejectedValue(new Error('Failed to initialize session'));
 
     const { res } = await invokeApp(app, {
       method: 'POST',
-      url: '/sse',
+      url: '/mcp',
       headers: {
         accept: 'application/json, text/event-stream',
         'content-type': 'application/json',
@@ -123,14 +126,15 @@ describe('Server Error Handling', () => {
     };
     expect(body.error?.code).toBe(-32603);
     expect(body.error?.message).toBe('Internal error');
+    expect(mocks.close).toHaveBeenCalledTimes(1);
   });
 
-  it('POST /sse returns 404 for unknown session header', async () => {
+  it('POST /mcp returns 404 for unknown session header', async () => {
     mocks.start.mockResolvedValue(undefined);
 
     const { res } = await invokeApp(app, {
       method: 'POST',
-      url: '/sse',
+      url: '/mcp',
       headers: {
         accept: 'application/json, text/event-stream',
         'content-type': 'application/json',
@@ -148,21 +152,5 @@ describe('Server Error Handling', () => {
     expect(body.error?.message).toBe('Session not found');
     expect(mocks.start).toHaveBeenCalledTimes(0);
     expect(mocks.handleRequest).toHaveBeenCalledTimes(0);
-  });
-
-  it('POST /messages returns 410 migration response', async () => {
-    const { res } = await invokeApp(app, {
-      method: 'POST',
-      url: '/messages?sessionId=test-session',
-      headers: {
-        'content-type': 'application/json',
-        authorization: 'Bearer token',
-      },
-      body: { jsonrpc: '2.0', method: 'ping' },
-    });
-
-    expect(res.statusCode).toBe(410);
-    const body = res._getJSON() as { error?: string };
-    expect(body.error).toContain('Legacy SSE transport endpoint removed');
   });
 });

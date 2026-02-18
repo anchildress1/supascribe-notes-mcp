@@ -72,10 +72,10 @@ describe('Auth Middleware', () => {
     expect(next).not.toHaveBeenCalled();
   });
 
-  it('returns 401 text/plain for /sse even if accepting HTML', async () => {
+  it('returns 401 text/plain for /mcp even if accepting HTML', async () => {
     (mockReq.accepts as Mock).mockReturnValue('html');
-    mockReq.path = '/sse';
-    mockReq.originalUrl = '/sse';
+    mockReq.path = '/mcp';
+    mockReq.originalUrl = '/mcp';
     const middleware = createAuthMiddleware(mockVerifier, publicUrl);
 
     await middleware(mockReq as Request, mockRes as Response, next);

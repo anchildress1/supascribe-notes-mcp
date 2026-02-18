@@ -29,13 +29,13 @@ export function createAuthMiddleware(authVerifier: SupabaseTokenVerifier, public
 
     if (!token) {
       // Handle OAuth Redirect misconfiguration:
-      // If the user lands on ANY protected endpoint (like /sse) with an authorization_id query param
+      // If the user lands on ANY protected endpoint (like /mcp) with an authorization_id query param
       // and accepts HTML, redirect them to the root / which handles the Auth UI.
       // Redirect logic removed as it interferes with standard OAuth flow
 
       // Check for browser navigation (AcceptHeader includes text/html)
-      // BUT exclude /sse, which must return 401 + WWW-Authenticate for the client to handle it
-      if (req.accepts('html') && !req.originalUrl.includes('/sse')) {
+      // BUT exclude /mcp, which must return 401 + WWW-Authenticate for the client to handle it
+      if (req.accepts('html') && !req.originalUrl.includes('/mcp')) {
         res.status(401).type('text/html').send(`
           <!DOCTYPE html>
           <html>

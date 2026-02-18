@@ -58,6 +58,15 @@ const testConfig: Config = {
   serverVersion: '1.0.0',
 };
 
+const hasForbiddenSchemaKey = (value: unknown): boolean => {
+  if (!value || typeof value !== 'object') return false;
+  if (Array.isArray(value)) return value.some(hasForbiddenSchemaKey);
+
+  const objectValue = value as Record<string, unknown>;
+  if ('$schema' in objectValue || 'default' in objectValue) return true;
+  return Object.values(objectValue).some(hasForbiddenSchemaKey);
+};
+
 describe('MCP Server Integration', () => {
   let app: ReturnType<typeof createApp>;
 
@@ -82,14 +91,14 @@ describe('MCP Server Integration', () => {
     expect(text).toContain('<!DOCTYPE html>');
   });
 
-  it('GET / redirects to /sse if Accept: text/event-stream', async () => {
+  it('GET / redirects to /mcp if Accept: text/event-stream', async () => {
     const { res } = await invokeApp(app, {
       method: 'GET',
       url: '/',
       headers: { accept: 'text/event-stream' },
     });
     expect(res.statusCode).toBe(307);
-    expect(res._getHeaders().location).toBe('/sse');
+    expect(res._getHeaders().location).toBe('/mcp');
   });
 
   it('GET /auth/authorize returns Consent UI', async () => {
@@ -102,28 +111,28 @@ describe('MCP Server Integration', () => {
     expect(text).toContain('deny()');
   });
 
-  it('GET /sse/auth/authorize redirects to /auth/authorize', async () => {
+  it('GET /mcp/auth/authorize redirects to /auth/authorize', async () => {
     const { res } = await invokeApp(app, {
       method: 'GET',
-      url: '/sse/auth/authorize?authorization_id=123',
+      url: '/mcp/auth/authorize?authorization_id=123',
     });
     expect(res.statusCode).toBe(302);
     expect(res._getHeaders().location).toBe('/auth/authorize?authorization_id=123');
   });
 
-  it('GET /sse returns 401 without auth', async () => {
+  it('GET /mcp returns 401 without auth', async () => {
     const { res } = await invokeApp(app, {
       method: 'GET',
-      url: '/sse',
+      url: '/mcp',
       headers: { accept: 'text/event-stream' },
     });
     expect(res.statusCode).toBe(401);
   });
 
-  it('GET /sse returns 401 with invalid auth', async () => {
+  it('GET /mcp returns 401 with invalid auth', async () => {
     const { res } = await invokeApp(app, {
       method: 'GET',
-      url: '/sse',
+      url: '/mcp',
       headers: {
         accept: 'text/event-stream',
         authorization: 'Bearer invalid-token',
@@ -147,10 +156,10 @@ describe('MCP Server Integration', () => {
     expect(body.token_endpoint).toBe(`${testConfig.supabaseUrl}/auth/v1/oauth/token`);
   });
 
-  it('GET /.well-known/oauth-protected-resource/sse returns specific metadata', async () => {
+  it('GET /.well-known/oauth-protected-resource/mcp returns specific metadata', async () => {
     const { res } = await invokeApp(app, {
       method: 'GET',
-      url: '/.well-known/oauth-protected-resource/sse',
+      url: '/.well-known/oauth-protected-resource/mcp',
     });
     expect(res.statusCode).toBe(200);
     expect(res._getHeaders()['cache-control']).toContain('no-store');
@@ -158,11 +167,11 @@ describe('MCP Server Integration', () => {
     expect(body.resource).toBe(testConfig.supabaseUrl);
   });
 
-  it('Streamable client initializes successfully via /sse alias', async () => {
+  it('Streamable client initializes successfully via /mcp', async () => {
     const httpServer = createServer(app);
     await new Promise<void>((resolve) => httpServer.listen(0, resolve));
     const { port } = httpServer.address() as AddressInfo;
-    const url = new URL(`http://127.0.0.1:${port}/sse`);
+    const url = new URL(`http://127.0.0.1:${port}/mcp`);
 
     const transport = new StreamableHTTPClientTransport(url, {
       requestInit: {
@@ -253,6 +262,7 @@ describe('MCP Server Integration', () => {
       expect(tool?.annotations?.destructiveHint).not.toBeUndefined();
       expect(tool?.annotations?.openWorldHint).not.toBeUndefined();
       expect(tool?._meta?.ui?.visibility).toEqual(['model', 'app']);
+      expect(hasForbiddenSchemaKey((tool as { inputSchema?: unknown }).inputSchema)).toBe(false);
     }
 
     await client.close();
@@ -261,10 +271,10 @@ describe('MCP Server Integration', () => {
     );
   });
 
-  it('POST /sse returns 404 for unknown session header', async () => {
+  it('POST /mcp returns 404 for unknown session header', async () => {
     const { res } = await invokeApp(app, {
       method: 'POST',
-      url: '/sse',
+      url: '/mcp',
       headers: {
         accept: 'application/json, text/event-stream',
         'content-type': 'application/json',
@@ -284,25 +294,5 @@ describe('MCP Server Integration', () => {
     };
     expect(body.error?.code).toBe(-32001);
     expect(body.error?.message).toContain('Session not found');
-  });
-
-  it('POST /messages returns 410 with migration guidance', async () => {
-    const { res } = await invokeApp(app, {
-      method: 'POST',
-      url: '/messages?sessionId=unknown-session-id',
-      headers: {
-        'content-type': 'application/json',
-        authorization: 'Bearer test-token',
-      },
-      body: {
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'ping',
-      },
-    });
-
-    expect(res.statusCode).toBe(410);
-    const body = res._getJSON() as { error?: string };
-    expect(body.error).toContain('Legacy SSE transport endpoint removed');
   });
 });
