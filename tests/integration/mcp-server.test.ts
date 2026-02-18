@@ -1,7 +1,11 @@
 import { describe, it, expect, vi, beforeAll } from 'vitest';
 import { createApp } from '../../src/server.js';
 import type { Config } from '../../src/config.js';
-import { invokeApp, waitForNextTick } from '../helpers/http.js';
+import { invokeApp } from '../helpers/http.js';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 
 // Mock Supabase client
 vi.mock('../../src/lib/supabase.js', () => ({
@@ -54,6 +58,15 @@ const testConfig: Config = {
   serverVersion: '1.0.0',
 };
 
+const hasForbiddenSchemaKey = (value: unknown): boolean => {
+  if (!value || typeof value !== 'object') return false;
+  if (Array.isArray(value)) return value.some(hasForbiddenSchemaKey);
+
+  const objectValue = value as Record<string, unknown>;
+  if ('$schema' in objectValue || 'default' in objectValue) return true;
+  return Object.values(objectValue).some(hasForbiddenSchemaKey);
+};
+
 describe('MCP Server Integration', () => {
   let app: ReturnType<typeof createApp>;
 
@@ -78,14 +91,14 @@ describe('MCP Server Integration', () => {
     expect(text).toContain('<!DOCTYPE html>');
   });
 
-  it('GET / redirects to /sse if Accept: text/event-stream', async () => {
+  it('GET / redirects to /mcp if Accept: text/event-stream', async () => {
     const { res } = await invokeApp(app, {
       method: 'GET',
       url: '/',
       headers: { accept: 'text/event-stream' },
     });
     expect(res.statusCode).toBe(307);
-    expect(res._getHeaders().location).toBe('/sse');
+    expect(res._getHeaders().location).toBe('/mcp');
   });
 
   it('GET /auth/authorize returns Consent UI', async () => {
@@ -98,28 +111,28 @@ describe('MCP Server Integration', () => {
     expect(text).toContain('deny()');
   });
 
-  it('GET /sse/auth/authorize redirects to /auth/authorize', async () => {
+  it('GET /mcp/auth/authorize redirects to /auth/authorize', async () => {
     const { res } = await invokeApp(app, {
       method: 'GET',
-      url: '/sse/auth/authorize?authorization_id=123',
+      url: '/mcp/auth/authorize?authorization_id=123',
     });
     expect(res.statusCode).toBe(302);
     expect(res._getHeaders().location).toBe('/auth/authorize?authorization_id=123');
   });
 
-  it('GET /sse returns 401 without auth', async () => {
+  it('GET /mcp returns 401 without auth', async () => {
     const { res } = await invokeApp(app, {
       method: 'GET',
-      url: '/sse',
+      url: '/mcp',
       headers: { accept: 'text/event-stream' },
     });
     expect(res.statusCode).toBe(401);
   });
 
-  it('GET /sse returns 401 with invalid auth', async () => {
+  it('GET /mcp returns 401 with invalid auth', async () => {
     const { res } = await invokeApp(app, {
       method: 'GET',
-      url: '/sse',
+      url: '/mcp',
       headers: {
         accept: 'text/event-stream',
         authorization: 'Bearer invalid-token',
@@ -143,10 +156,10 @@ describe('MCP Server Integration', () => {
     expect(body.token_endpoint).toBe(`${testConfig.supabaseUrl}/auth/v1/oauth/token`);
   });
 
-  it('GET /.well-known/oauth-protected-resource/sse returns specific metadata', async () => {
+  it('GET /.well-known/oauth-protected-resource/mcp returns specific metadata', async () => {
     const { res } = await invokeApp(app, {
       method: 'GET',
-      url: '/.well-known/oauth-protected-resource/sse',
+      url: '/.well-known/oauth-protected-resource/mcp',
     });
     expect(res.statusCode).toBe(200);
     expect(res._getHeaders()['cache-control']).toContain('no-store');
@@ -154,137 +167,47 @@ describe('MCP Server Integration', () => {
     expect(body.resource).toBe(testConfig.supabaseUrl);
   });
 
-  it('GET /sse initiates SSE connection', async () => {
-    const { res } = await invokeApp(
-      app,
-      {
-        method: 'GET',
-        url: '/sse',
+  it('Streamable client initializes successfully via /mcp', async () => {
+    const httpServer = createServer(app);
+    await new Promise<void>((resolve) => httpServer.listen(0, resolve));
+    const { port } = httpServer.address() as AddressInfo;
+    const url = new URL(`http://127.0.0.1:${port}/mcp`);
+
+    const transport = new StreamableHTTPClientTransport(url, {
+      requestInit: {
         headers: {
-          accept: 'text/event-stream',
-          authorization: 'Bearer test-token',
+          Authorization: 'Bearer test-token',
         },
       },
-      { waitForEnd: false },
+    });
+    const client = new Client({ name: 'test-client', version: '1.0.0' }, { capabilities: {} });
+
+    await client.connect(transport);
+    expect(transport.sessionId).toBeTruthy();
+    await client.close();
+    await new Promise<void>((resolve, reject) =>
+      httpServer.close((error) => (error ? reject(error) : resolve())),
     );
-
-    await waitForNextTick();
-
-    expect(res.statusCode).toBe(200);
-    expect(res._getHeaders()['content-type']).toContain('text/event-stream');
-    expect(res._getData()).toContain('event: endpoint');
-
-    res.emit('close');
   });
 
-  it('full MCP flow: SSE handshake → initialize → list tools', async () => {
-    const { res: sseRes } = await invokeApp(
-      app,
-      {
-        method: 'GET',
-        url: '/sse',
+  it('full MCP flow: streamable initialize → list tools', async () => {
+    const httpServer = createServer(app);
+    await new Promise<void>((resolve) => httpServer.listen(0, resolve));
+    const { port } = httpServer.address() as AddressInfo;
+    const url = new URL(`http://127.0.0.1:${port}/mcp`);
+
+    const transport = new StreamableHTTPClientTransport(url, {
+      requestInit: {
         headers: {
-          accept: 'text/event-stream',
-          authorization: 'Bearer test-token',
-        },
-      },
-      { waitForEnd: false },
-    );
-
-    const reader = (() => {
-      let cursor = 0;
-      return {
-        async readEvent(): Promise<{ event: string; data: string }> {
-          const timeoutAt = Date.now() + 1000;
-          while (Date.now() < timeoutAt) {
-            const available = sseRes._getData().slice(cursor);
-            const delimiterIndex = available.indexOf('\n\n');
-            if (delimiterIndex !== -1) {
-              const messageBlock = available.slice(0, delimiterIndex);
-              cursor += delimiterIndex + 2;
-              const lines = messageBlock.split('\n');
-              let event = '';
-              let data = '';
-
-              for (const line of lines) {
-                if (line.startsWith('event: ')) event = line.slice(7);
-                if (line.startsWith('data: ')) data = line.slice(6);
-              }
-              return { event, data };
-            }
-            await waitForNextTick();
-          }
-          throw new Error('Timed out waiting for SSE event');
-        },
-      };
-    })();
-
-    const endpointEvent = await reader.readEvent();
-    expect(endpointEvent.event).toBe('endpoint');
-    const endpointUrl = endpointEvent.data;
-    expect(endpointUrl).toContain('/messages?sessionId=');
-
-    const url = new URL(endpointUrl, 'http://localhost');
-    const sessionId = url.searchParams.get('sessionId')!;
-    expect(sessionId).toBeTruthy();
-
-    // 3. Send Initialize Request
-    const initResult = await invokeApp(app, {
-      method: 'POST',
-      url: url.pathname + url.search,
-      headers: {
-        'content-type': 'application/json',
-        authorization: 'Bearer test-token',
-      },
-      body: {
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'initialize',
-        params: {
-          protocolVersion: '2025-03-26',
-          capabilities: {},
-          clientInfo: { name: 'test-client', version: '1.0.0' },
+          Authorization: 'Bearer test-token',
         },
       },
     });
+    const client = new Client({ name: 'test-client', version: '1.0.0' }, { capabilities: {} });
 
-    expect(initResult.res.statusCode).toBe(202);
+    await client.connect(transport);
 
-    // 4. Expect 'message' event which contains the initialize result
-    const initMessage = await reader.readEvent();
-    expect(initMessage.event).toBe('message');
-    const initData = JSON.parse(initMessage.data);
-    expect(initData.result.protocolVersion).toBeDefined();
-
-    // 5. Send Initialized Notification
-    await invokeApp(app, {
-      method: 'POST',
-      url: url.pathname + url.search,
-      headers: {
-        'content-type': 'application/json',
-        authorization: 'Bearer test-token',
-      },
-      body: {
-        jsonrpc: '2.0',
-        method: 'notifications/initialized',
-      },
-    });
-
-    // 5. List Tools
-    await invokeApp(app, {
-      method: 'POST',
-      url: url.pathname + url.search,
-      headers: {
-        'content-type': 'application/json',
-        authorization: 'Bearer test-token',
-      },
-      body: {
-        jsonrpc: '2.0',
-        id: 2,
-        method: 'tools/list',
-        params: {},
-      },
-    });
+    const listResult = await client.listTools();
 
     const expectedToolNames = [
       'health',
@@ -296,64 +219,67 @@ describe('MCP Server Integration', () => {
       'search_cards',
     ];
 
-    // Read events
-    let foundTools = false;
-    for (let i = 0; i < 2; i++) {
-      const msg = await reader.readEvent();
-      if (msg.event === 'message') {
-        const json = JSON.parse(msg.data);
-        if (json.id === 2 && json.result) {
-          const tools = json.result.tools;
-          expect(tools).toBeDefined();
-          expect(tools).toHaveLength(expectedToolNames.length);
+    const tools = listResult.tools;
+    expect(tools).toBeDefined();
+    expect(tools).toHaveLength(expectedToolNames.length);
 
-          const toolNames = tools.map((t: { name: string }) => t.name).sort();
-          expect(toolNames).toEqual([...expectedToolNames].sort());
+    const toolNames = tools.map((tool) => String(tool.name)).sort();
+    expect(toolNames).toEqual([...expectedToolNames].sort());
 
-          const writeTool = tools.find((t: { name: string }) => t.name === 'write_cards');
-          expect(writeTool).toBeDefined();
+    const writeTool = tools.find((tool) => tool.name === 'write_cards') as Record<string, unknown>;
+    expect(writeTool).toBeDefined();
 
-          // Debug output for user verification
-          console.log('--- DETECTED TOOL DEFINITION ---');
-          console.log(JSON.stringify(writeTool, null, 2));
+    expect(writeTool.inputSchema).toBeDefined();
+    expect((writeTool.inputSchema as { type?: string }).type).toBe('object');
+    expect(
+      (writeTool.inputSchema as { properties?: Record<string, unknown> }).properties,
+    ).toBeDefined();
+    expect(
+      (writeTool.inputSchema as { properties?: Record<string, { type?: string }> }).properties
+        ?.cards,
+    ).toBeDefined();
+    expect(
+      (writeTool.inputSchema as { properties?: Record<string, { type?: string }> }).properties
+        ?.cards?.type,
+    ).toBe('array');
 
-          // Verify schema structure per user request
-          expect(writeTool.inputSchema).toBeDefined();
-          expect(writeTool.inputSchema.type).toBe('object');
-          expect(writeTool.inputSchema.properties).toBeDefined();
-          expect(writeTool.inputSchema.properties.cards).toBeDefined();
-          expect(writeTool.inputSchema.properties.cards.type).toBe('array');
-
-          for (const name of expectedToolNames) {
-            const tool = tools.find((t: { name: string }) => t.name === name);
-            expect(tool).toBeDefined();
-            expect(tool.title).toBeTruthy();
-            expect(tool.annotations).toBeDefined();
-            expect(tool.annotations.readOnlyHint).not.toBeUndefined();
-            expect(tool.annotations.destructiveHint).not.toBeUndefined();
-            expect(tool.annotations.openWorldHint).not.toBeUndefined();
-            expect(tool._meta?.ui?.visibility).toEqual(['model', 'app']);
+    for (const name of expectedToolNames) {
+      const tool = tools.find((candidate) => candidate.name === name) as
+        | {
+            title?: string;
+            annotations?: {
+              readOnlyHint?: boolean;
+              destructiveHint?: boolean;
+              openWorldHint?: boolean;
+            };
+            _meta?: { ui?: { visibility?: string[] } };
           }
-
-          foundTools = true;
-          break;
-        }
-      }
+        | undefined;
+      expect(tool).toBeDefined();
+      expect(tool?.title).toBeTruthy();
+      expect(tool?.annotations).toBeDefined();
+      expect(tool?.annotations?.readOnlyHint).not.toBeUndefined();
+      expect(tool?.annotations?.destructiveHint).not.toBeUndefined();
+      expect(tool?.annotations?.openWorldHint).not.toBeUndefined();
+      expect(tool?._meta?.ui?.visibility).toEqual(['model', 'app']);
+      expect(hasForbiddenSchemaKey((tool as { inputSchema?: unknown }).inputSchema)).toBe(false);
     }
 
-    expect(foundTools).toBe(true);
-
-    // Close
-    sseRes.emit('close');
+    await client.close();
+    await new Promise<void>((resolve, reject) =>
+      httpServer.close((error) => (error ? reject(error) : resolve())),
+    );
   });
 
-  it('POST /messages returns 404 for unknown session', async () => {
+  it('POST /mcp returns 404 for unknown session header', async () => {
     const { res } = await invokeApp(app, {
       method: 'POST',
-      url: '/messages?sessionId=unknown-session-id',
+      url: '/mcp',
       headers: {
+        accept: 'application/json, text/event-stream',
         'content-type': 'application/json',
         authorization: 'Bearer test-token',
+        'mcp-session-id': 'unknown-session-id',
       },
       body: {
         jsonrpc: '2.0',
@@ -363,7 +289,10 @@ describe('MCP Server Integration', () => {
     });
 
     expect(res.statusCode).toBe(404);
-    const text = res._getData();
-    expect(text).toContain('Session not found');
+    const body = res._getJSON() as {
+      error?: { code?: number; message?: string };
+    };
+    expect(body.error?.code).toBe(-32001);
+    expect(body.error?.message).toContain('Session not found');
   });
 });

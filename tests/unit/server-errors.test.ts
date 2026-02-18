@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createApp } from '../../src/server.js';
 import type { Config } from '../../src/config.js';
-import { invokeApp, waitForNextTick } from '../helpers/http.js';
+import { invokeApp } from '../helpers/http.js';
 
 const testConfig: Config = {
   supabaseUrl: 'http://localhost:54321',
@@ -34,23 +34,30 @@ vi.mock('@modelcontextprotocol/sdk/server/mcp.js', () => ({
     connect: vi.fn().mockImplementation(async (transport) => {
       await transport.start();
     }),
+    server: {
+      setRequestHandler: vi.fn(),
+    },
   })),
 }));
 
-// Mock SSEServerTransport
+// Mock StreamableHTTPServerTransport
 const mocks = vi.hoisted(() => {
   return {
     start: vi.fn().mockResolvedValue(undefined),
-    handlePostMessage: vi.fn().mockResolvedValue(undefined),
+    handleRequest: vi.fn().mockImplementation(async (_req, res) => {
+      res.status(200).json({ ok: true });
+    }),
+    close: vi.fn().mockResolvedValue(undefined),
   };
 });
 
-vi.mock('@modelcontextprotocol/sdk/server/sse.js', () => {
+vi.mock('@modelcontextprotocol/sdk/server/streamableHttp.js', () => {
   return {
-    SSEServerTransport: vi.fn().mockImplementation(() => ({
+    StreamableHTTPServerTransport: vi.fn().mockImplementation(() => ({
       start: mocks.start,
-      handlePostMessage: mocks.handlePostMessage,
-      sessionId: 'test-session',
+      handleRequest: mocks.handleRequest,
+      close: mocks.close,
+      sessionId: undefined,
       onclose: vi.fn(),
     })),
   };
@@ -64,85 +71,86 @@ describe('Server Error Handling', () => {
     app = createApp(testConfig);
   });
 
-  it('GET /sse initializes connection and calls start exactly once', async () => {
-    // 1. Make start() a controlled promise so we can resolve it later
-    let resolveStart: () => void;
-    const startPromise = new Promise<void>((resolve) => {
-      resolveStart = resolve;
-    });
-    mocks.start.mockImplementation(() => startPromise);
-
-    const { res } = await invokeApp(
-      app,
-      {
-        method: 'GET',
-        url: '/sse',
-        headers: { authorization: 'Bearer token' },
+  it('POST /mcp initializes streamable transport and calls start exactly once', async () => {
+    const { res } = await invokeApp(app, {
+      method: 'POST',
+      url: '/mcp',
+      headers: {
+        accept: 'application/json, text/event-stream',
+        'content-type': 'application/json',
+        authorization: 'Bearer token',
       },
-      { waitForEnd: false },
-    );
+      body: {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: {
+          protocolVersion: '2025-03-26',
+          capabilities: {},
+          clientInfo: { name: 'test-client', version: '1.0.0' },
+        },
+      },
+    });
 
-    await waitForNextTick();
-
-    // Verify start was called exactly once (via server.connect)
+    expect(res.statusCode).toBe(200);
     expect(mocks.start).toHaveBeenCalledTimes(1);
-
-    // Cleanup: resolve the hanging promise and abort the fetch
-    resolveStart!();
-    res.emit('close');
+    expect(mocks.handleRequest).toHaveBeenCalledTimes(1);
   });
 
-  it('GET /sse returns 500 if transport start fails', async () => {
+  it('POST /mcp returns 500 if transport start fails and closes transport', async () => {
     mocks.start.mockRejectedValue(new Error('Failed to initialize session'));
 
     const { res } = await invokeApp(app, {
-      method: 'GET',
-      url: '/sse',
-      headers: { authorization: 'Bearer token' },
+      method: 'POST',
+      url: '/mcp',
+      headers: {
+        accept: 'application/json, text/event-stream',
+        'content-type': 'application/json',
+        authorization: 'Bearer token',
+      },
+      body: {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: {
+          protocolVersion: '2025-03-26',
+          capabilities: {},
+          clientInfo: { name: 'test-client', version: '1.0.0' },
+        },
+      },
     });
 
     expect(res.statusCode).toBe(500);
-    expect(res._getHeaders()['content-type']).toBe('text/event-stream');
-    const text = res._getData();
-    expect(text).toContain('event: error');
-    expect(text).toContain('"error":"Failed to initialize session"');
+    const body = res._getJSON() as {
+      error?: { code?: number; message?: string };
+    };
+    expect(body.error?.code).toBe(-32603);
+    expect(body.error?.message).toBe('Internal error');
+    expect(mocks.close).toHaveBeenCalledTimes(1);
   });
 
-  it('POST /messages returns 500 if handlePostMessage fails', async () => {
-    // 1. Start success
+  it('POST /mcp returns 404 for unknown session header', async () => {
     mocks.start.mockResolvedValue(undefined);
 
-    // 2. Start SSE connection (wait for it to settle)
-    const { res: sseRes } = await invokeApp(
-      app,
-      {
-        method: 'GET',
-        url: '/sse',
-        headers: { authorization: 'Bearer token' },
-      },
-      { waitForEnd: false },
-    );
-
-    await waitForNextTick();
-
-    // 3. Mock handlePostMessage failure
-    mocks.handlePostMessage.mockRejectedValue(new Error('Handle failed'));
-
-    // 4. Send POST message
     const { res } = await invokeApp(app, {
       method: 'POST',
-      url: '/messages?sessionId=test-session',
+      url: '/mcp',
       headers: {
+        accept: 'application/json, text/event-stream',
         'content-type': 'application/json',
         authorization: 'Bearer token',
+        'mcp-session-id': 'test-session',
       },
       body: { jsonrpc: '2.0', method: 'ping' },
     });
 
-    expect(res.statusCode).toBe(500);
-    const body = res._getJSON() as { error: string };
-    expect(body.error).toBe('Internal server error');
-
-    sseRes.emit('close');
+    expect(res.statusCode).toBe(404);
+    const body = res._getJSON() as {
+      error?: { code?: number; message?: string };
+    };
+    expect(body.error?.code).toBe(-32001);
+    expect(body.error?.message).toBe('Session not found');
+    expect(mocks.start).toHaveBeenCalledTimes(0);
+    expect(mocks.handleRequest).toHaveBeenCalledTimes(0);
   });
 });

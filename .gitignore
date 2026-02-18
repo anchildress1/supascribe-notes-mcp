@@ -9,3 +9,8 @@ coverage/
 !.env.test
 
 .secrets.baseline
+
+# Local agent / MCP client settings
+.claude/
+.mcp/
+.mcp.json

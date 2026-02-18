@@ -88,7 +88,7 @@ when OAuth providers (Google/GitHub) are not configured on your Supabase project
    - `GET /openapi.json` should include all expected `/api/*` paths.
    - Response should include `Cache-Control: no-store`.
 3. **Confirm MCP list is complete**
-   - Connect to `/sse`, initialize, then call `tools/list`.
+   - Connect to `/mcp`, initialize, then call `tools/list`.
    - Validate expected tools are present:
      - `health`
      - `write_cards`

@@ -41,7 +41,7 @@ make install
 | `SUPABASE_ANON_KEY`         | ✅       | Supabase anon key (auth UI)                                          |
 | `SUPABASE_ACCESS_TOKEN`     | ❌       | Supabase CLI/MCP token (required only to apply remote migrations)    |
 | `PORT`                      | ❌       | Server port (default: `8080`)                                        |
-| `PUBLIC_URL`                | ✅       | Public URL for OAuth & SSE                                           |
+| `PUBLIC_URL`                | ✅       | Public URL for OAuth & MCP transport endpoints                       |
 | `SERVER_VERSION`            | ❌       | MCP/OpenAPI version hint for client cache busting (default: `1.0.0`) |
 
 ## Authentication
@@ -51,7 +51,7 @@ This server uses **Supabase Auth** via OAuth 2.0 for all MCP operations. MCP cli
 - `/.well-known/oauth-authorization-server`
 - `/.well-known/oauth-protected-resource`
 
-Standard `Authorization: Bearer <token>` header is required for all SSE and message endpoints.
+Standard `Authorization: Bearer <token>` header is required for MCP transport endpoints.
 
 ## ChatGPT SDK Endpoints
 
@@ -129,18 +129,21 @@ SERVICE_URL="https://your-service-url"
 # 1. Health check (Public)
 curl "$SERVICE_URL/status"
 
-# 2. SSE handshake (Requires Auth)
+# 2. Streamable HTTP initialize (Requires Auth)
 # Replace YOUR_TOKEN with a valid Supabase JWT
-curl -i -N -H "Accept: text/event-stream" \
-     -H "Authorization: Bearer YOUR_TOKEN" \
-     "$SERVICE_URL/sse"
+curl -i -X POST \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "Content-Type: application/json" \
+  --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"curl","version":"1.0.0"}}}' \
+  "$SERVICE_URL/mcp"
 ```
 
-The SSE connection will return an `endpoint` event containing the URL for sending JSON-RPC messages, e.g., `$SERVICE_URL/messages?sessionId=...`.
+The initialize response returns `Mcp-Session-Id` in response headers. Use that header on subsequent MCP requests.
 
-To fully test the MCP functionality, configure your MCP client (like Claude Desktop) to connect to the SSE endpoint:
+To fully test the MCP functionality, configure your MCP client to connect to the Streamable HTTP endpoint:
 
-- **URL**: `$SERVICE_URL/sse`
+- **URL**: `$SERVICE_URL/mcp`
 - **Auth**: Use the standard OAuth 2.1 flow supported by your client, pointing to your Supabase project's auth endpoints.
 
 ## Card Shape

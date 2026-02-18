@@ -1,6 +1,6 @@
 import express from 'express';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import {
   WriteCardsInputSchema,
   CardIdInputSchema,
@@ -28,7 +28,23 @@ import { renderAuthPage } from './views/auth-view.js';
 import { renderHelpPage } from './views/help-view.js';
 import { createOpenApiSpec } from './lib/openapi.js';
 import cors from 'cors';
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
+import { ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import type { AnySchema, ZodRawShapeCompat } from '@modelcontextprotocol/sdk/server/zod-compat.js';
+import { zodToJsonSchema } from 'zod-to-json-schema';
+import { randomUUID } from 'node:crypto';
+
+export function stripJsonSchemaKeywords(value: unknown): unknown {
+  if (!value || typeof value !== 'object') return value;
+  if (Array.isArray(value)) return value.map(stripJsonSchemaKeywords);
+
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    if (k === '$schema' || k === 'default') continue;
+    out[k] = stripJsonSchemaKeywords(v);
+  }
+  return out;
+}
 
 function sendToolResult(res: express.Response, result: CallToolResult): void {
   if (result.isError) {
@@ -94,11 +110,11 @@ export function createApp(config: Config): express.Express {
 
   // Root endpoint - User facing help page
   app.get('/', (req, res) => {
-    // Redirect to SSE endpoint if client prefers text/event-stream
+    // Redirect to MCP endpoint if client prefers text/event-stream
     // This helps MCP clients that are configured with the root URL
     const preferred = req.accepts(['html', 'text/event-stream']);
     if (preferred === 'text/event-stream') {
-      res.redirect(307, '/sse');
+      res.redirect(307, '/mcp');
       return;
     }
 
@@ -134,8 +150,7 @@ export function createApp(config: Config): express.Express {
     });
   });
 
-  // SSE specific OAuth Protected Resource Metadata
-  app.get('/.well-known/oauth-protected-resource/sse', (_req, res) => {
+  app.get('/.well-known/oauth-protected-resource/mcp', (_req, res) => {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
     res.set('Pragma', 'no-cache');
     res.json({
@@ -147,7 +162,7 @@ export function createApp(config: Config): express.Express {
   });
 
   // Handle incorrect path appended by ChatGPT
-  app.get('/sse/auth/authorize', (req, res) => {
+  app.get('/mcp/auth/authorize', (req, res) => {
     const query = new URLSearchParams(req.query as unknown as Record<string, string>).toString();
     res.redirect(`/auth/authorize?${query}`);
   });
@@ -155,48 +170,83 @@ export function createApp(config: Config): express.Express {
   // Auth Middleware
   const authenticate = createAuthMiddleware(authVerifier, config.publicUrl);
 
-  // Store active transports
-  const transports = new Map<string, SSEServerTransport>();
+  // Store active streamable HTTP transports by MCP session ID.
+  const transports = new Map<string, StreamableHTTPServerTransport>();
 
-  // SSE endpoint
-  app.use('/sse', authenticate, async (req, res) => {
-    logger.info('New SSE connection attempt');
-
-    // Create a new transport for this connection
-    // The endpoint URL will be where clients send messages
-    const transport = new SSEServerTransport('/messages', res);
+  const createStreamableTransport = async (): Promise<StreamableHTTPServerTransport> => {
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: randomUUID,
+      onsessioninitialized: (sessionId) => {
+        transports.set(sessionId, transport);
+        logger.info({ sessionId }, 'MCP session initialized');
+      },
+      onsessionclosed: (sessionId) => {
+        transports.delete(sessionId);
+        logger.info({ sessionId }, 'MCP session closed');
+      },
+    });
     const server = createMcpServer(supabase, config.serverVersion);
+    try {
+      await server.connect(transport);
+      return transport;
+    } catch (error) {
+      try {
+        await transport.close();
+      } catch (closeError) {
+        logger.warn(
+          { error: closeError },
+          'Failed to close transport after server.connect failure',
+        );
+      }
+      throw error;
+    }
+  };
+
+  const handleMcpRequest = async (req: express.Request, res: express.Response) => {
+    const sessionIdHeader = req.header('mcp-session-id');
+    let transport = sessionIdHeader ? transports.get(sessionIdHeader) : undefined;
+    const isNewTransport = !transport;
+
+    if (sessionIdHeader && !transport) {
+      logger.warn(
+        { sessionId: sessionIdHeader, method: req.method },
+        'MCP request for unknown session',
+      );
+      res.status(404).json({
+        jsonrpc: '2.0',
+        error: { code: -32001, message: 'Session not found' },
+        id: null,
+      });
+      return;
+    }
 
     try {
-      // Connect first to ensure everything is set up
-      await server.connect(transport);
-
-      const sessionId = transport.sessionId;
-      transports.set(sessionId, transport);
-      logger.info({ sessionId }, 'SSE session initialized');
-
-      transport.onclose = () => {
-        transports.delete(sessionId);
-        logger.info({ sessionId }, 'SSE session closed');
-      };
-
-      // Start the transport - this keeps the connection open
-      // transport.start() is already called by server.connect(transport)
-      // so we don't need to call it again.
+      if (!transport) {
+        transport = await createStreamableTransport();
+      }
+      await transport.handleRequest(req, res, req.body);
     } catch (error) {
-      logger.error({ error }, 'Failed to initialize SSE session');
+      logger.error(
+        { error, sessionId: sessionIdHeader, method: req.method },
+        'Failed to handle MCP request',
+      );
       if (!res.headersSent) {
-        res.status(500);
-        res.setHeader('Content-Type', 'text/event-stream');
-        res.write(
-          `event: error\ndata: ${JSON.stringify({
-            error: 'Failed to initialize session',
-          })}\n\n`,
-        );
-        res.end();
+        res.status(500).json({
+          jsonrpc: '2.0',
+          error: { code: -32603, message: 'Internal error' },
+          id: null,
+        });
+      }
+    } finally {
+      // Invalid pre-init requests use a one-off transport and should not linger.
+      if (isNewTransport && transport && !transport.sessionId) {
+        await transport.close();
       }
     }
-  });
+  };
+
+  // Streamable HTTP MCP endpoint.
+  app.all('/mcp', authenticate, handleMcpRequest);
 
   // ChatGPT Apps Action: Write Cards
   app.post('/api/write-cards', authenticate, async (req, res) => {
@@ -284,32 +334,6 @@ export function createApp(config: Config): express.Express {
     }
   });
 
-  // Messages endpoint
-  app.post('/messages', authenticate, async (req, res) => {
-    const sessionId = req.query.sessionId;
-
-    if (!sessionId || typeof sessionId !== 'string') {
-      res.status(400).send('Missing or invalid sessionId query parameter');
-      return;
-    }
-
-    const transport = transports.get(sessionId);
-    if (!transport) {
-      logger.warn({ sessionId }, 'Message received for unknown session');
-      res.status(404).send('Session not found');
-      return;
-    }
-
-    try {
-      await transport.handlePostMessage(req, res, req.body);
-    } catch (error) {
-      logger.error({ error, sessionId }, 'Error handling message');
-      if (!res.headersSent) {
-        res.status(500).json({ error: 'Internal server error' });
-      }
-    }
-  });
-
   return app;
 }
 
@@ -319,12 +343,70 @@ export function createMcpServer(supabase: SupabaseClient, serverVersion = '1.0.0
     version: serverVersion,
   });
 
-  server.registerTool(
+  const toolListForChatGPT: Array<Record<string, unknown>> = [];
+  const recordToolForChatGPT = (tool: {
+    name: string;
+    title?: string;
+    description?: string;
+    inputSchema?: unknown;
+    annotations?: unknown;
+    _meta?: unknown;
+  }) => {
+    if (!tool.title || !tool.description) {
+      logger.warn(
+        { toolName: tool.name },
+        'Skipping tool in ChatGPT tools/list output: missing title or description',
+      );
+      return;
+    }
+    if (!tool.inputSchema) {
+      logger.warn(
+        { toolName: tool.name },
+        'Skipping tool in ChatGPT tools/list output: missing inputSchema',
+      );
+      return;
+    }
+
+    const inputSchema = stripJsonSchemaKeywords(
+      zodToJsonSchema(tool.inputSchema as never, {
+        target: 'openApi3',
+        $refStrategy: 'none',
+        pipeStrategy: 'input',
+        strictUnions: true,
+      }),
+    );
+
+    toolListForChatGPT.push({
+      name: tool.name,
+      title: tool.title,
+      description: tool.description,
+      inputSchema,
+      annotations: tool.annotations,
+      _meta: tool._meta,
+    });
+  };
+
+  const registerToolAndRecord = <TArgs, TResult>(
+    name: string,
+    config: {
+      title?: string;
+      description?: string;
+      inputSchema?: AnySchema | ZodRawShapeCompat;
+      annotations?: ToolAnnotations;
+      _meta?: Record<string, unknown>;
+    },
+    cb: (args: TArgs) => Promise<TResult>,
+  ) => {
+    server.registerTool(name, config, cb as never);
+    recordToolForChatGPT({ name, ...config });
+  };
+
+  registerToolAndRecord(
     'health',
     {
       title: 'Health Check',
       description: 'Check server and Supabase connectivity status',
-      inputSchema: {},
+      inputSchema: EmptyInputSchema,
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -337,7 +419,7 @@ export function createMcpServer(supabase: SupabaseClient, serverVersion = '1.0.0
     async () => handleHealth(supabase),
   );
 
-  server.registerTool(
+  registerToolAndRecord(
     'write_cards',
     {
       title: 'Write Index Cards',
@@ -356,7 +438,7 @@ export function createMcpServer(supabase: SupabaseClient, serverVersion = '1.0.0
     async ({ cards }: WriteCardsInput) => handleWriteCards(supabase, cards),
   );
 
-  server.registerTool(
+  registerToolAndRecord(
     'lookup_card_by_id',
     {
       title: 'Lookup Cards by ID',
@@ -375,7 +457,7 @@ export function createMcpServer(supabase: SupabaseClient, serverVersion = '1.0.0
     async ({ ids }: CardIdInput) => handleLookupCardsById(supabase, ids),
   );
 
-  server.registerTool(
+  registerToolAndRecord(
     'lookup_categories',
     {
       title: 'Lookup Categories',
@@ -394,7 +476,7 @@ export function createMcpServer(supabase: SupabaseClient, serverVersion = '1.0.0
     async () => handleLookupCategories(supabase),
   );
 
-  server.registerTool(
+  registerToolAndRecord(
     'lookup_projects',
     {
       title: 'Lookup Projects',
@@ -413,7 +495,7 @@ export function createMcpServer(supabase: SupabaseClient, serverVersion = '1.0.0
     async () => handleLookupProjects(supabase),
   );
 
-  server.registerTool(
+  registerToolAndRecord(
     'lookup_tags',
     {
       title: 'Lookup Tags',
@@ -432,7 +514,7 @@ export function createMcpServer(supabase: SupabaseClient, serverVersion = '1.0.0
     async () => handleLookupTags(supabase),
   );
 
-  server.registerTool(
+  registerToolAndRecord(
     'search_cards',
     {
       title: 'Search Cards',
@@ -450,6 +532,26 @@ export function createMcpServer(supabase: SupabaseClient, serverVersion = '1.0.0
     },
     async (filters: SearchCardsInput) => handleSearchCards(supabase, filters),
   );
+
+  // Replace `tools/list` with a schema-sanitized version for ChatGPT compatibility.
+  // In unit tests, McpServer is mocked and may not expose `.server`.
+  type ProtocolServer = {
+    setRequestHandler: (
+      requestSchema: typeof ListToolsRequestSchema,
+      handler: () => { tools: Array<Record<string, unknown>> },
+    ) => void;
+  };
+
+  const protocolServer = (server as unknown as { server?: ProtocolServer }).server;
+  if (protocolServer?.setRequestHandler) {
+    protocolServer.setRequestHandler(ListToolsRequestSchema, () => ({
+      tools: toolListForChatGPT,
+    }));
+  } else {
+    logger.warn(
+      'MCP tools/list override could not be installed; MCP SDK internals may have changed',
+    );
+  }
 
   return server;
 }
