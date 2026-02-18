@@ -50,5 +50,5 @@ vitest.config.ts
 
 # Local helper scripts not used in container build
 deploy.sh
-verify-sse.sh
+verify-mcp.sh
 test-remote.mjs
