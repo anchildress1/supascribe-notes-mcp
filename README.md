@@ -12,7 +12,7 @@ A TypeScript MCP server that writes index cards to Supabase, deployed on Google 
 | `lookup_categories` | Get all unique categories used across cards                     |
 | `lookup_projects`   | Get all unique project identifiers used across cards            |
 | `lookup_tags`       | Get all unique lvl0/lvl1 tags used across cards                 |
-| `search_cards`      | Search cards by title, category, project, and hierarchical tags |
+| `search_cards`      | Keyword search by category/tag/project/fact with loose matching |
 
 ## Architecture
 

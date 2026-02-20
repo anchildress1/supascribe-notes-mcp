@@ -113,13 +113,34 @@ describe('Lookup Tools Unit Tests', () => {
 
   it('handleSearchCards calls supabase with filters', async () => {
     const filters = {
-      title: 'Test',
-      category: 'Cat',
-      project: 'Proj',
-      lvl0: ['T0'],
-      lvl1: ['T1'],
+      category: 'know',
+      project: 'alpha',
+      tag: 'postgres',
+      fact: 'index latency',
     };
-    const mockData = { data: [{ title: 'Test Card' }], error: null };
+    const mockData = {
+      data: [
+        {
+          objectID: '1',
+          title: 'Faster Postgres Indexes',
+          blurb: 'Reducing index bloat',
+          fact: 'Index tuning reduced latency spikes in read queries',
+          category: 'Knowledge Base',
+          projects: ['Alpha Platform'],
+          tags: { lvl0: ['Databases'], lvl1: ['Postgres'] },
+        },
+        {
+          objectID: '2',
+          title: 'Unrelated note',
+          blurb: 'Something else',
+          fact: 'No keyword overlap here',
+          category: 'Other',
+          projects: ['Beta'],
+          tags: { lvl0: ['Misc'], lvl1: ['General'] },
+        },
+      ],
+      error: null,
+    };
     const supabase = mockSupabase;
     supabase.then.mockImplementation((onfulfilled: (value: unknown) => unknown) =>
       Promise.resolve(mockData).then(onfulfilled),
@@ -128,14 +149,14 @@ describe('Lookup Tools Unit Tests', () => {
     const result = await handleSearchCards(supabase as SupabaseClient, filters);
 
     expect(supabase.from).toHaveBeenCalledWith('cards');
-    expect(supabase.ilike).toHaveBeenCalledWith('title', '%Test%');
-    expect(supabase.eq).toHaveBeenCalledWith('category', 'Cat');
-    expect(supabase.contains).toHaveBeenCalledWith('projects', ['Proj']);
-    expect(supabase.contains).toHaveBeenCalledWith('tags', { lvl0: ['T0'] });
-    expect(supabase.contains).toHaveBeenCalledWith('tags', { lvl1: ['T1'] });
-    expect(
-      JSON.parse(result.content[0].type === 'text' ? result.content[0].text : '[]'),
-    ).toHaveLength(1);
+    expect(supabase.select).toHaveBeenCalledWith('*');
+    const body = JSON.parse(result.content[0].type === 'text' ? result.content[0].text : '{}') as {
+      cards: Array<{ objectID: string; title: string; category: string }>;
+    };
+    expect(body.cards).toHaveLength(1);
+    expect(body.cards[0].objectID).toBe('1');
+    expect(body.cards[0].title).toBe('Faster Postgres Indexes');
+    expect(body.cards[0].category).toBe('Knowledge Base');
   });
 
   it('handleSearchCards returns error for empty filters', async () => {

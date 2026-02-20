@@ -268,13 +268,13 @@ describe('Lookup Tools Integration', () => {
         ...authHeaders,
         'content-type': 'application/json',
       },
-      body: { title: 'another' },
+      body: { fact: 'another' },
     });
 
     expect(res.statusCode).toBe(200);
-    const body = res._getJSON() as Array<{ objectID: string; title: string }>;
-    expect(body).toHaveLength(1);
-    expect(body[0].title).toBe('Another Card');
+    const body = res._getJSON() as { cards: Array<{ objectID: string; title: string }> };
+    expect(body.cards).toHaveLength(1);
+    expect(body.cards[0].title).toBe('Another Card');
   });
 
   it('validates search_cards input', async () => {

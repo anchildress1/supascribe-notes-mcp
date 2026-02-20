@@ -133,8 +133,8 @@ describe('WriteCardsInputSchema', () => {
 
 describe('SearchCardsInputSchema', () => {
   it('accepts at least one filter', () => {
-    const result = SearchCardsInputSchema.parse({ title: 'Test' });
-    expect(result.title).toBe('Test');
+    const result = SearchCardsInputSchema.parse({ fact: 'distributed systems' });
+    expect(result.fact).toBe('distributed systems');
   });
 
   it('rejects empty filters', () => {

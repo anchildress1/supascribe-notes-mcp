@@ -79,29 +79,59 @@ export async function handleLookupTags(supabase: SupabaseClient): Promise<CallTo
 export async function handleSearchCards(
   supabase: SupabaseClient,
   filters: {
-    title?: string;
     category?: string;
+    tag?: string;
     project?: string;
-    lvl0?: string[];
-    lvl1?: string[];
+    fact?: string;
   },
 ): Promise<CallToolResult> {
-  const normalizeList = (list?: string[]) =>
-    list?.map((value) => value.trim()).filter((value) => value.length > 0);
+  const normalizeText = (value?: string) => {
+    const trimmed = value?.trim();
+    return trimmed && trimmed.length > 0 ? trimmed : undefined;
+  };
+
+  const tokenize = (value: string) =>
+    value
+      .toLowerCase()
+      .split(/[^a-z0-9]+/g)
+      .filter((token) => token.length > 1);
+
+  const looseKeywordMatch = (query: string, haystack: string, minimumRatio = 1): boolean => {
+    const queryTokens = tokenize(query);
+    if (queryTokens.length === 0) return false;
+
+    const haystackLower = haystack.toLowerCase();
+    const matchedTokenCount = queryTokens.filter((token) => haystackLower.includes(token)).length;
+    const requiredMatches = Math.max(1, Math.ceil(queryTokens.length * minimumRatio));
+
+    return matchedTokenCount >= requiredMatches;
+  };
+
+  type SearchableCard = {
+    title?: string;
+    blurb?: string;
+    fact?: string;
+    category?: string;
+    projects?: string[];
+    tags?: {
+      lvl0?: string[];
+      lvl1?: string[];
+    };
+    [key: string]: unknown;
+  };
+
   const normalizedFilters = {
-    title: filters.title?.trim(),
-    category: filters.category?.trim(),
-    project: filters.project?.trim(),
-    lvl0: normalizeList(filters.lvl0),
-    lvl1: normalizeList(filters.lvl1),
+    category: normalizeText(filters.category),
+    tag: normalizeText(filters.tag),
+    project: normalizeText(filters.project),
+    fact: normalizeText(filters.fact),
   };
 
   const hasFilter =
-    Boolean(normalizedFilters.title) ||
     Boolean(normalizedFilters.category) ||
+    Boolean(normalizedFilters.tag) ||
     Boolean(normalizedFilters.project) ||
-    (normalizedFilters.lvl0?.length ?? 0) > 0 ||
-    (normalizedFilters.lvl1?.length ?? 0) > 0;
+    Boolean(normalizedFilters.fact);
 
   if (!hasFilter) {
     return {
@@ -111,25 +141,7 @@ export async function handleSearchCards(
   }
 
   logger.info({ filters: normalizedFilters }, 'Searching cards');
-  let query = supabase.from('cards').select('*');
-
-  if (normalizedFilters.title) {
-    query = query.ilike('title', `%${normalizedFilters.title}%`);
-  }
-  if (normalizedFilters.category) {
-    query = query.eq('category', normalizedFilters.category);
-  }
-  if (normalizedFilters.project) {
-    query = query.contains('projects', [normalizedFilters.project]);
-  }
-  if (normalizedFilters.lvl0 && normalizedFilters.lvl0.length > 0) {
-    query = query.contains('tags', { lvl0: normalizedFilters.lvl0 });
-  }
-  if (normalizedFilters.lvl1 && normalizedFilters.lvl1.length > 0) {
-    query = query.contains('tags', { lvl1: normalizedFilters.lvl1 });
-  }
-
-  const { data, error } = await query;
+  const { data, error } = await supabase.from('cards').select('*');
 
   if (error) {
     logger.error({ filters: normalizedFilters, error }, 'Error searching cards');
@@ -139,7 +151,32 @@ export async function handleSearchCards(
     };
   }
 
+  const cards = (data ?? []) as SearchableCard[];
+  const matchedCards = cards.filter((card) => {
+    if (normalizedFilters.category) {
+      const categoryText = card.category ?? '';
+      if (!looseKeywordMatch(normalizedFilters.category, categoryText, 1)) return false;
+    }
+
+    if (normalizedFilters.project) {
+      const projectText = (card.projects ?? []).join(' ');
+      if (!looseKeywordMatch(normalizedFilters.project, projectText, 1)) return false;
+    }
+
+    if (normalizedFilters.tag) {
+      const tagText = [...(card.tags?.lvl0 ?? []), ...(card.tags?.lvl1 ?? [])].join(' ');
+      if (!looseKeywordMatch(normalizedFilters.tag, tagText, 1)) return false;
+    }
+
+    if (normalizedFilters.fact) {
+      const factSearchText = `${card.title ?? ''} ${card.blurb ?? ''} ${card.fact ?? ''}`;
+      if (!looseKeywordMatch(normalizedFilters.fact, factSearchText, 0.5)) return false;
+    }
+
+    return true;
+  });
+
   return {
-    content: [{ type: 'text', text: JSON.stringify(data) }],
+    content: [{ type: 'text', text: JSON.stringify({ cards: matchedCards }) }],
   };
 }

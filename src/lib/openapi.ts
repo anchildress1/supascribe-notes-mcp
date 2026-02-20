@@ -87,6 +87,13 @@ export function createOpenApiSpec(serverUrl: string, serverVersion = '1.0.0'): o
           },
           required: ['cards'],
         },
+        SearchCardsResponse: {
+          type: 'object',
+          properties: {
+            cards: { type: 'array', items: { $ref: '#/components/schemas/Card' } },
+          },
+          required: ['cards'],
+        },
       },
       securitySchemes: {
         BearerAuth: {
@@ -303,7 +310,8 @@ export function createOpenApiSpec(serverUrl: string, serverVersion = '1.0.0'): o
           operationId: 'searchCards',
           'x-openai-isConsequential': false,
           summary: 'Search cards',
-          description: 'Search cards by title, category, project, and tags.',
+          description:
+            'Search cards by keyword hints for category, tag, project, and fact content. Use concise keywords, not full sentences.',
           security: [{ BearerAuth: [] }],
           requestBody: {
             required: true,
@@ -321,10 +329,7 @@ export function createOpenApiSpec(serverUrl: string, serverVersion = '1.0.0'): o
               content: {
                 'application/json': {
                   schema: {
-                    type: 'array',
-                    items: {
-                      $ref: '#/components/schemas/Card',
-                    },
+                    $ref: '#/components/schemas/SearchCardsResponse',
                   },
                 },
               },

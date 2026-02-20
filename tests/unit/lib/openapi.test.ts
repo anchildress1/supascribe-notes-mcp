@@ -31,13 +31,14 @@ describe('createOpenApiSpec', () => {
       spec.paths['/api/lookup-tags'].get.responses['200'].content['application/json'].schema.$ref,
     ).toBe('#/components/schemas/LookupTagsResponse');
     expect(
-      spec.paths['/api/search-cards'].post.responses['200'].content['application/json'].schema.type,
-    ).toBe('array');
+      spec.paths['/api/search-cards'].post.responses['200'].content['application/json'].schema.$ref,
+    ).toBe('#/components/schemas/SearchCardsResponse');
     expect(spec.components.schemas.CardInput).toBeDefined();
     expect(spec.components.schemas.Card).toBeDefined();
     expect(spec.components.schemas.CardInput.properties.title.description).toBeDefined();
     expect(spec.components.schemas.WriteCardsInput).toBeDefined();
     expect(spec.components.schemas.CardIdInput).toBeDefined();
     expect(spec.components.schemas.SearchCardsInput).toBeDefined();
+    expect(spec.components.schemas.SearchCardsResponse).toBeDefined();
   });
 });

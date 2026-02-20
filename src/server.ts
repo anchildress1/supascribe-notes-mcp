@@ -518,7 +518,8 @@ export function createMcpServer(supabase: SupabaseClient, serverVersion = '1.0.0
     'search_cards',
     {
       title: 'Search Cards',
-      description: 'Search for index cards using filters (title, category, project, tags)',
+      description:
+        'Search cards with keyword filters for category, tag, project, or fact. Use short keywords only, not full sentences.',
       inputSchema: SearchCardsInputSchema,
       annotations: {
         readOnlyHint: true,
