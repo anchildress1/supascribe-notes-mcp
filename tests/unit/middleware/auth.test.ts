@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
 import type { Request, Response, NextFunction } from 'express';
 import { createAuthMiddleware } from '../../../src/middleware/auth.js';
 import type { SupabaseTokenVerifier } from '../../../src/lib/auth-provider.js';
@@ -33,6 +33,10 @@ describe('Auth Middleware', () => {
     } as unknown as Partial<Response>;
 
     next = vi.fn();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('returns 401 if token is in query param but not header', async () => {

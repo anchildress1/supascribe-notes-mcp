@@ -14,6 +14,7 @@ type QueryMock = {
   eq: ReturnType<typeof vi.fn>;
   in: ReturnType<typeof vi.fn>;
   ilike: ReturnType<typeof vi.fn>;
+  or: ReturnType<typeof vi.fn>;
   contains: ReturnType<typeof vi.fn>;
   maybeSingle: ReturnType<typeof vi.fn>;
   then: ReturnType<typeof vi.fn>;
@@ -30,6 +31,7 @@ const createQueryMock = (initialValue: unknown): QueryMock => ({
   eq: vi.fn().mockReturnThis(),
   in: vi.fn().mockReturnThis(),
   ilike: vi.fn().mockReturnThis(),
+  or: vi.fn().mockReturnThis(),
   contains: vi.fn().mockReturnThis(),
   maybeSingle: vi.fn().mockResolvedValue(initialValue),
   then: vi.fn().mockImplementation((onfulfilled: (value: unknown) => unknown) => {
@@ -214,6 +216,10 @@ describe('Lookup Tools Unit Tests', () => {
 
     expect(mockSupabase.from).toHaveBeenCalledWith('cards');
     expect(mockSupabase.select).toHaveBeenCalledWith('*');
+    expect(mockSupabase.ilike).toHaveBeenCalledWith('category', '%know%');
+    expect(mockSupabase.or).toHaveBeenCalledTimes(1);
+    expect(mockSupabase.or.mock.calls[0][0]).toContain('title.ilike.%index%');
+    expect(mockSupabase.or.mock.calls[0][0]).toContain('fact.ilike.%latency%');
     expect(body.cards).toHaveLength(1);
     expect(body.cards[0]).toEqual(
       expect.objectContaining({

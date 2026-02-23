@@ -96,6 +96,15 @@ export async function handleSearchCards(
       .split(/[^a-z0-9]+/g)
       .filter((token) => token.length > 1);
 
+  const escapeLikeToken = (value: string) =>
+    value
+      .replaceAll('\\', '\\\\')
+      .replaceAll('%', '\\%')
+      .replaceAll('_', '\\_')
+      .replaceAll(',', '\\,')
+      .replaceAll('(', '\\(')
+      .replaceAll(')', '\\)');
+
   const looseKeywordMatch = (query: string, haystack: string, minimumRatio = 1): boolean => {
     const queryTokens = tokenize(query);
     if (queryTokens.length === 0) return false;
@@ -141,7 +150,30 @@ export async function handleSearchCards(
   }
 
   logger.info({ filters: normalizedFilters }, 'Searching cards');
-  const { data, error } = await supabase.from('cards').select('*');
+  let query = supabase.from('cards').select('*');
+
+  if (normalizedFilters.category) {
+    for (const token of tokenize(normalizedFilters.category)) {
+      query = query.ilike('category', `%${escapeLikeToken(token)}%`);
+    }
+  }
+
+  if (normalizedFilters.fact) {
+    const factTokens = tokenize(normalizedFilters.fact);
+    if (factTokens.length > 0) {
+      const factOrConditions = factTokens.flatMap((token) => {
+        const escapedToken = escapeLikeToken(token);
+        return [
+          `title.ilike.%${escapedToken}%`,
+          `blurb.ilike.%${escapedToken}%`,
+          `fact.ilike.%${escapedToken}%`,
+        ];
+      });
+      query = query.or(factOrConditions.join(','));
+    }
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     logger.error({ filters: normalizedFilters, error }, 'Error searching cards');

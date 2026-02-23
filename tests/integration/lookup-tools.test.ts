@@ -57,8 +57,12 @@ vi.mock('../../src/lib/supabase.js', () => ({
             if (col === 'title') {
               result = result.filter((c) => c.title.toLowerCase().includes(pattern));
             }
+            if (col === 'category') {
+              result = result.filter((c) => c.category.toLowerCase().includes(pattern));
+            }
             return queryBuilder;
           }),
+          or: vi.fn().mockReturnThis(),
           contains: vi.fn().mockImplementation((col, val) => {
             if (col === 'projects') {
               const project = val[0];
