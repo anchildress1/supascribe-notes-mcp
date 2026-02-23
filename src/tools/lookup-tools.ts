@@ -98,12 +98,12 @@ export async function handleSearchCards(
 
   const escapeLikeToken = (value: string) =>
     value
-      .replaceAll('\\', '\\\\')
-      .replaceAll('%', '\\%')
-      .replaceAll('_', '\\_')
-      .replaceAll(',', '\\,')
-      .replaceAll('(', '\\(')
-      .replaceAll(')', '\\)');
+      .replaceAll('\\', String.raw`\\`)
+      .replaceAll('%', String.raw`\%`)
+      .replaceAll('_', String.raw`\_`)
+      .replaceAll(',', String.raw`\,`)
+      .replaceAll('(', String.raw`\(`)
+      .replaceAll(')', String.raw`\)`);
 
   const looseKeywordMatch = (query: string, haystack: string, minimumRatio = 1): boolean => {
     const queryTokens = tokenize(query);
