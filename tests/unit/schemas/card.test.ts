@@ -56,6 +56,11 @@ describe('CardInputSchema', () => {
     expect(result.url).toBeUndefined();
   });
 
+  it('normalizes blank url values to undefined', () => {
+    const result = CardInputSchema.parse({ ...validCard, url: '   ' });
+    expect(result.url).toBeUndefined();
+  });
+
   it('accepts a card without projects (defaults to empty array)', () => {
     const { projects: _, ...cardWithoutProjects } = validCard;
     const result = CardInputSchema.parse(cardWithoutProjects);
@@ -76,6 +81,10 @@ describe('CardInputSchema', () => {
 
   it('rejects invalid url', () => {
     expect(() => CardInputSchema.parse({ ...validCard, url: 'not-a-url' })).toThrow();
+  });
+
+  it('rejects non-string url values', () => {
+    expect(() => CardInputSchema.parse({ ...validCard, url: 123 as unknown as string })).toThrow();
   });
 
   it('rejects signal below 1', () => {
@@ -103,6 +112,12 @@ describe('CardInputSchema', () => {
     const created_at = '2020-01-01T00:00:00Z';
     const result = CardInputSchema.parse({ ...validCard, created_at: `  ${created_at}  ` });
     expect(result.created_at).toBe(created_at);
+  });
+
+  it('rejects non-string created_at values', () => {
+    expect(() =>
+      CardInputSchema.parse({ ...validCard, created_at: 123 as unknown as string }),
+    ).toThrow();
   });
 });
 
@@ -135,6 +150,15 @@ describe('SearchCardsInputSchema', () => {
   it('accepts at least one filter', () => {
     const result = SearchCardsInputSchema.parse({ fact: 'distributed systems' });
     expect(result.fact).toBe('distributed systems');
+  });
+
+  it('accepts each supported keyword filter individually', () => {
+    expect(SearchCardsInputSchema.parse({ category: 'engineering' }).category).toBe('engineering');
+    expect(SearchCardsInputSchema.parse({ tag: 'postgres' }).tag).toBe('postgres');
+    expect(SearchCardsInputSchema.parse({ project: 'core platform' }).project).toBe(
+      'core platform',
+    );
+    expect(SearchCardsInputSchema.parse({ fact: 'retry budget' }).fact).toBe('retry budget');
   });
 
   it('rejects empty filters', () => {

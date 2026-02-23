@@ -166,7 +166,7 @@ To fully test the MCP functionality, configure your MCP client to connect to the
 
 ## CI/CD
 
-- **GitHub Actions** — lint, test (80% coverage), secrets scan, build
+- **GitHub Actions** — lint, test (85% business-logic coverage), secrets scan, build
 - **Release Please** — conventional commit based semantic versioning
 - **Commitlint + rai-lint** — enforces AI attribution footers
 - **Lefthook** — git hooks for commit message validation

@@ -58,6 +58,18 @@ describe('SupabaseTokenVerifier', () => {
     );
   });
 
+  it('throws when Supabase returns no user without an explicit error', async () => {
+    const verifier = new SupabaseTokenVerifier(mockSupabase);
+    mockGetUser.mockResolvedValue({
+      data: { user: null },
+      error: null,
+    });
+
+    await expect(verifier.verifyAccessToken('valid-but-empty-user')).rejects.toThrow(
+      'Invalid access token: No user found',
+    );
+  });
+
   it('falls back to 1 hour expiration if token parsing fails', async () => {
     const verifier = new SupabaseTokenVerifier(mockSupabase);
     const unparseableToken = 'invalid-format-token';
@@ -70,5 +82,25 @@ describe('SupabaseTokenVerifier', () => {
     const authInfo = await verifier.verifyAccessToken(unparseableToken);
 
     expect(authInfo.expiresAt).toBeCloseTo(Math.floor(Date.now() / 1000) + 3600, -2); // Approx 1 hour (within 100s)
+  });
+
+  it('falls back to 1 hour expiration if exp claim is invalid', async () => {
+    const verifier = new SupabaseTokenVerifier(mockSupabase);
+    const payload = { exp: 'not-a-number' };
+    const payloadBase64 = Buffer.from(JSON.stringify(payload))
+      .toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=/g, '');
+    const token = `header.${payloadBase64}.signature`;
+
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: 'user-123' } },
+      error: null,
+    });
+
+    const authInfo = await verifier.verifyAccessToken(token);
+
+    expect(authInfo.expiresAt).toBeCloseTo(Math.floor(Date.now() / 1000) + 3600, -2);
   });
 });

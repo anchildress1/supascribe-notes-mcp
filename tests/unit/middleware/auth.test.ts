@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import type { Request, Response, NextFunction } from 'express';
 import { createAuthMiddleware } from '../../../src/middleware/auth.js';
 import type { SupabaseTokenVerifier } from '../../../src/lib/auth-provider.js';
+import { logger } from '../../../src/lib/logger.js';
 
 describe('Auth Middleware', () => {
   let mockVerifier: SupabaseTokenVerifier;
@@ -117,6 +118,20 @@ describe('Auth Middleware', () => {
     expect(mockVerifier.verifyAccessToken).toHaveBeenCalledWith('invalid-token');
     expect(mockRes.status).toHaveBeenCalledWith(401);
     expect(mockRes.send).toHaveBeenCalledWith('Invalid token');
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('returns 401 and logs warning for malformed Authorization header', async () => {
+    const warnSpy = vi.spyOn(logger, 'warn');
+    mockReq.headers = { authorization: 'Token malformed-value' };
+    const middleware = createAuthMiddleware(mockVerifier, publicUrl);
+
+    await middleware(mockReq as Request, mockRes as Response, next);
+
+    expect(warnSpy).toHaveBeenCalled();
+    expect(mockVerifier.verifyAccessToken).not.toHaveBeenCalled();
+    expect(mockRes.status).toHaveBeenCalledWith(401);
+    expect(mockRes.send).toHaveBeenCalledWith('Unauthorized');
     expect(next).not.toHaveBeenCalled();
   });
 

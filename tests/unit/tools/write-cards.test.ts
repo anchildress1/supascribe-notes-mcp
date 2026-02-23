@@ -219,4 +219,154 @@ describe('handleWriteCards', () => {
       supabase._mocks.cardRevisionsInsertMock.mock.invocationCallOrder[0],
     );
   });
+
+  it('records revision insertion failures without failing the whole write', async () => {
+    const supabase = createMockSupabase({
+      cardRevisionsInsertResult: { error: { message: 'revision failed' } },
+    });
+
+    const result = await handleWriteCards(supabase, [validCard]);
+
+    const body = JSON.parse((result.content[0] as { type: 'text'; text: string }).text);
+    expect(body.written).toBe(1);
+    expect(body.errors).toBe(1);
+    expect(body.error_details[0]).toContain('Revision for "Test Card": revision failed');
+  });
+
+  it('finalizes run through insert path when initial generation run insert reports error', async () => {
+    let generationRunInsertCount = 0;
+    const supabase = {
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === 'cards') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+              }),
+            }),
+            upsert: vi.fn().mockResolvedValue({ error: null }),
+          };
+        }
+        if (table === 'card_revisions') {
+          return { insert: vi.fn().mockResolvedValue({ error: null }) };
+        }
+        if (table === 'generation_runs') {
+          return {
+            insert: vi.fn().mockImplementation(() => {
+              generationRunInsertCount += 1;
+              if (generationRunInsertCount === 1) {
+                return Promise.resolve({ error: { message: 'initial insert failed' } });
+              }
+              return Promise.resolve({ error: null });
+            }),
+            update: vi.fn().mockReturnValue({
+              eq: vi.fn().mockResolvedValue({ error: null }),
+            }),
+          };
+        }
+        return { insert: vi.fn().mockResolvedValue({ error: null }) };
+      }),
+    } as unknown as SupabaseClient;
+
+    const result = await handleWriteCards(supabase, [validCard]);
+    const body = JSON.parse((result.content[0] as { type: 'text'; text: string }).text);
+
+    expect(body.written).toBe(1);
+    expect(generationRunInsertCount).toBe(2);
+  });
+
+  it('returns catastrophic error payload when response serialization throws', async () => {
+    const generationRunsUpdateEq = vi.fn().mockRejectedValue(new Error('cannot persist run error'));
+    const supabase = {
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === 'cards') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+              }),
+            }),
+            upsert: vi.fn().mockResolvedValue({ error: null }),
+          };
+        }
+        if (table === 'card_revisions') {
+          return { insert: vi.fn().mockResolvedValue({ error: null }) };
+        }
+        if (table === 'generation_runs') {
+          return {
+            insert: vi.fn().mockResolvedValue({ error: null }),
+            update: vi.fn().mockReturnValue({
+              eq: generationRunsUpdateEq,
+            }),
+          };
+        }
+        return { insert: vi.fn().mockResolvedValue({ error: null }) };
+      }),
+    } as unknown as SupabaseClient;
+
+    const circularTitle: Record<string, unknown> = {};
+    circularTitle.self = circularTitle;
+
+    const malformedCard = {
+      ...validCard,
+      title: circularTitle as unknown as string,
+    };
+
+    const result = await handleWriteCards(supabase, [malformedCard]);
+    const body = JSON.parse((result.content[0] as { type: 'text'; text: string }).text);
+
+    expect(result.isError).toBe(true);
+    expect(body.error).toContain('circular');
+    expect(body.written).toBe(1);
+    expect(generationRunsUpdateEq).toHaveBeenCalled();
+  });
+
+  it('persists catastrophic run state via insert when generation run was never created', async () => {
+    let generationRunInsertCount = 0;
+    let finalInsertPayload: Record<string, unknown> | undefined;
+    const generationRunsInsert = vi.fn().mockImplementation((payload: Record<string, unknown>) => {
+      generationRunInsertCount += 1;
+      if (generationRunInsertCount === 1) {
+        return Promise.resolve({ error: { message: 'initial insert failed' } });
+      }
+      finalInsertPayload = payload;
+      return Promise.resolve({ error: null });
+    });
+
+    const supabase = {
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === 'generation_runs') {
+          return {
+            insert: generationRunsInsert,
+            update: vi.fn().mockReturnValue({
+              eq: vi.fn().mockResolvedValue({ error: null }),
+            }),
+          };
+        }
+        if (table === 'cards') {
+          return { select: vi.fn(), upsert: vi.fn() };
+        }
+        if (table === 'card_revisions') {
+          return { insert: vi.fn().mockResolvedValue({ error: null }) };
+        }
+        return { insert: vi.fn().mockResolvedValue({ error: null }) };
+      }),
+    } as unknown as SupabaseClient;
+
+    const explodingCards = {
+      length: 1,
+      [Symbol.iterator]: () => {
+        throw new Error('cards iterator exploded');
+      },
+    } as unknown as CardInput[];
+
+    const result = await handleWriteCards(supabase, explodingCards);
+    const body = JSON.parse((result.content[0] as { type: 'text'; text: string }).text);
+
+    expect(result.isError).toBe(true);
+    expect(body.error).toContain('cards iterator exploded');
+    expect(generationRunInsertCount).toBe(2);
+    expect(finalInsertPayload?.status).toBe('error');
+    expect(String(finalInsertPayload?.error)).toContain('cards iterator exploded');
+  });
 });
