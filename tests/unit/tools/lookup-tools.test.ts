@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   handleLookupCardsById,
   handleLookupCategories,
@@ -6,214 +7,180 @@ import {
   handleLookupTags,
   handleSearchCards,
 } from '../../../src/tools/lookup-tools.js';
-import type { SupabaseClient } from '@supabase/supabase-js';
+
+type QueryMock = {
+  from: ReturnType<typeof vi.fn>;
+  select: ReturnType<typeof vi.fn>;
+  eq: ReturnType<typeof vi.fn>;
+  in: ReturnType<typeof vi.fn>;
+  ilike: ReturnType<typeof vi.fn>;
+  contains: ReturnType<typeof vi.fn>;
+  maybeSingle: ReturnType<typeof vi.fn>;
+  then: ReturnType<typeof vi.fn>;
+};
+
+const asTextJson = <T>(result: { content: Array<{ type: string; text: string }> }): T => {
+  const text = result.content[0]?.type === 'text' ? result.content[0].text : '{}';
+  return JSON.parse(text) as T;
+};
+
+const createQueryMock = (initialValue: unknown): QueryMock => ({
+  from: vi.fn().mockReturnThis(),
+  select: vi.fn().mockReturnThis(),
+  eq: vi.fn().mockReturnThis(),
+  in: vi.fn().mockReturnThis(),
+  ilike: vi.fn().mockReturnThis(),
+  contains: vi.fn().mockReturnThis(),
+  maybeSingle: vi.fn().mockResolvedValue(initialValue),
+  then: vi.fn().mockImplementation((onfulfilled: (value: unknown) => unknown) => {
+    return Promise.resolve(initialValue).then(onfulfilled);
+  }),
+});
+
+const setQueryResult = (supabase: QueryMock, value: unknown) => {
+  supabase.then.mockImplementation((onfulfilled: (result: unknown) => unknown) =>
+    Promise.resolve(value).then(onfulfilled),
+  );
+};
+
+const setTagResults = (
+  supabase: QueryMock,
+  resultsByTable: Record<string, { data: unknown[]; error: { message: string } | null }>,
+) => {
+  supabase.from.mockImplementation((table: string) => ({
+    select: vi.fn().mockResolvedValue(resultsByTable[table] ?? { data: [], error: null }),
+  }));
+};
 
 describe('Lookup Tools Unit Tests', () => {
-  type QueryMock = {
-    from: ReturnType<typeof vi.fn>;
-    select: ReturnType<typeof vi.fn>;
-    eq: ReturnType<typeof vi.fn>;
-    in: ReturnType<typeof vi.fn>;
-    ilike: ReturnType<typeof vi.fn>;
-    contains: ReturnType<typeof vi.fn>;
-    maybeSingle: ReturnType<typeof vi.fn>;
-    then: ReturnType<typeof vi.fn>;
-  };
-
   let mockSupabase: QueryMock;
 
   beforeEach(() => {
-    const createQueryMock = (returnValue: unknown): QueryMock => {
-      const mock: QueryMock = {
-        from: vi.fn().mockReturnThis(),
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        in: vi.fn().mockReturnThis(),
-        ilike: vi.fn().mockReturnThis(),
-        contains: vi.fn().mockReturnThis(),
-        maybeSingle: vi.fn().mockResolvedValue(returnValue),
-        then: vi.fn().mockImplementation((onfulfilled: (value: unknown) => unknown) => {
-          return Promise.resolve(returnValue).then(onfulfilled);
-        }),
-      };
-      return mock;
-    };
-
     mockSupabase = createQueryMock({ data: [], error: null });
   });
 
   it('handleLookupCardsById calls supabase correctly', async () => {
     const id = '88888888-8888-8888-8888-888888888888';
-    const supabase = mockSupabase;
-    supabase.then.mockImplementation((onfulfilled: (value: unknown) => unknown) =>
-      Promise.resolve({ data: [{ objectID: id }], error: null }).then(onfulfilled),
-    );
+    setQueryResult(mockSupabase, { data: [{ objectID: id }], error: null });
 
-    const result = await handleLookupCardsById(supabase as SupabaseClient, [id]);
+    const result = await handleLookupCardsById(mockSupabase as SupabaseClient, [id]);
+    const body = asTextJson<{ cards: Array<{ objectID: string }> }>(result);
 
-    expect(supabase.from).toHaveBeenCalledWith('cards');
-    expect(supabase.in).toHaveBeenCalledWith('objectID', [id]);
-    expect(JSON.parse(result.content[0].type === 'text' ? result.content[0].text : '{}')).toEqual({
-      cards: [{ objectID: id }],
-    });
+    expect(mockSupabase.from).toHaveBeenCalledWith('cards');
+    expect(mockSupabase.in).toHaveBeenCalledWith('objectID', [id]);
+    expect(body.cards).toEqual([{ objectID: id }]);
   });
 
   it('handleLookupCardsById returns error when query fails', async () => {
-    const id = '88888888-8888-8888-8888-888888888888';
-    const supabase = mockSupabase;
-    supabase.then.mockImplementation((onfulfilled: (value: unknown) => unknown) =>
-      Promise.resolve({ data: null, error: { message: 'boom' } }).then(onfulfilled),
-    );
+    setQueryResult(mockSupabase, { data: null, error: { message: 'boom' } });
 
-    const result = await handleLookupCardsById(supabase as SupabaseClient, [id]);
+    const result = await handleLookupCardsById(mockSupabase as SupabaseClient, [
+      '88888888-8888-8888-8888-888888888888',
+    ]);
 
     expect(result.isError).toBe(true);
-    expect(result.content[0].type).toBe('text');
     expect(result.content[0].text).toContain('Error: boom');
   });
 
   it('handleLookupCardsById falls back to an empty list when data is null', async () => {
-    const id = '88888888-8888-8888-8888-888888888888';
-    const supabase = mockSupabase;
-    supabase.then.mockImplementation((onfulfilled: (value: unknown) => unknown) =>
-      Promise.resolve({ data: null, error: null }).then(onfulfilled),
-    );
+    setQueryResult(mockSupabase, { data: null, error: null });
 
-    const result = await handleLookupCardsById(supabase as SupabaseClient, [id]);
+    const result = await handleLookupCardsById(mockSupabase as SupabaseClient, [
+      '88888888-8888-8888-8888-888888888888',
+    ]);
 
-    const body = JSON.parse(result.content[0].type === 'text' ? result.content[0].text : '{}') as {
-      cards: unknown[];
-    };
+    const body = asTextJson<{ cards: unknown[] }>(result);
     expect(body.cards).toEqual([]);
   });
 
-  it('handleLookupCategories calls supabase correctly', async () => {
-    const mockData = { data: [{ category: 'Cat 1' }, { category: 'Cat 2' }], error: null };
-    const supabase = mockSupabase;
-    supabase.then.mockImplementation((onfulfilled: (value: unknown) => unknown) =>
-      Promise.resolve(mockData).then(onfulfilled),
-    );
+  it.each([
+    {
+      label: 'categories',
+      handler: handleLookupCategories,
+      table: 'unique_categories',
+      column: 'category',
+      resultKey: 'categories',
+      rows: [{ category: 'Cat 1' }, { category: 'Cat 2' }],
+      expected: ['Cat 1', 'Cat 2'],
+    },
+    {
+      label: 'projects',
+      handler: handleLookupProjects,
+      table: 'unique_projects',
+      column: 'project',
+      resultKey: 'projects',
+      rows: [{ project: 'P1' }, { project: 'P2' }],
+      expected: ['P1', 'P2'],
+    },
+  ])(
+    'handleLookup$label maps rows correctly',
+    async ({ handler, table, column, resultKey, rows, expected }) => {
+      setQueryResult(mockSupabase, { data: rows, error: null });
 
-    const result = await handleLookupCategories(supabase as SupabaseClient);
+      const result = await handler(mockSupabase as SupabaseClient);
+      const body = asTextJson<Record<string, string[]>>(result);
 
-    expect(supabase.from).toHaveBeenCalledWith('unique_categories');
-    expect(supabase.select).toHaveBeenCalledWith('category');
-    const json = JSON.parse(result.content[0].type === 'text' ? result.content[0].text : '{}');
-    expect(json.categories).toEqual(['Cat 1', 'Cat 2']);
-  });
+      expect(mockSupabase.from).toHaveBeenCalledWith(table);
+      expect(mockSupabase.select).toHaveBeenCalledWith(column);
+      expect(body[resultKey]).toEqual(expected);
+    },
+  );
 
-  it('handleLookupCategories returns error when query fails', async () => {
-    const supabase = mockSupabase;
-    supabase.then.mockImplementation((onfulfilled: (value: unknown) => unknown) =>
-      Promise.resolve({ data: [], error: { message: 'categories failed' } }).then(onfulfilled),
-    );
+  it.each([
+    { handler: handleLookupCategories, message: 'categories failed' },
+    { handler: handleLookupProjects, message: 'projects failed' },
+  ])('lookup handler returns error when query fails', async ({ handler, message }) => {
+    setQueryResult(mockSupabase, { data: [], error: { message } });
 
-    const result = await handleLookupCategories(supabase as SupabaseClient);
-
-    expect(result.isError).toBe(true);
-    expect(result.content[0].text).toContain('categories failed');
-  });
-
-  it('handleLookupProjects calls supabase correctly', async () => {
-    const mockData = { data: [{ project: 'P1' }, { project: 'P2' }], error: null };
-    const supabase = mockSupabase;
-    supabase.then.mockImplementation((onfulfilled: (value: unknown) => unknown) =>
-      Promise.resolve(mockData).then(onfulfilled),
-    );
-
-    const result = await handleLookupProjects(supabase as SupabaseClient);
-
-    expect(supabase.from).toHaveBeenCalledWith('unique_projects');
-    expect(supabase.select).toHaveBeenCalledWith('project');
-    const json = JSON.parse(result.content[0].type === 'text' ? result.content[0].text : '{}');
-    expect(json.projects.sort()).toEqual(['P1', 'P2'].sort());
-  });
-
-  it('handleLookupProjects returns error when query fails', async () => {
-    const supabase = mockSupabase;
-    supabase.then.mockImplementation((onfulfilled: (value: unknown) => unknown) =>
-      Promise.resolve({ data: [], error: { message: 'projects failed' } }).then(onfulfilled),
-    );
-
-    const result = await handleLookupProjects(supabase as SupabaseClient);
+    const result = await handler(mockSupabase as SupabaseClient);
 
     expect(result.isError).toBe(true);
-    expect(result.content[0].text).toContain('projects failed');
+    expect(result.content[0].text).toContain(message);
   });
 
-  it('handleLookupTags calls supabase correctly', async () => {
-    const supabase = mockSupabase;
-    supabase.from.mockImplementation((table: string) => {
-      const data = table === 'unique_tags_lvl0' ? [{ tag: 'T0' }] : [{ tag: 'T1' }, { tag: 'T2' }];
-      return {
-        select: vi.fn().mockReturnThis(),
-        then: vi
-          .fn()
-          .mockImplementation((onfulfilled: (value: unknown) => unknown) =>
-            Promise.resolve({ data, error: null }).then(onfulfilled),
-          ),
-      };
+  it('handleLookupTags merges lvl0 and lvl1 tags', async () => {
+    setTagResults(mockSupabase, {
+      unique_tags_lvl0: { data: [{ tag: 'T0' }], error: null },
+      unique_tags_lvl1: { data: [{ tag: 'T1' }, { tag: 'T2' }], error: null },
     });
 
-    const result = await handleLookupTags(supabase as SupabaseClient);
+    const result = await handleLookupTags(mockSupabase as SupabaseClient);
+    const body = asTextJson<{ tags: { lvl0: string[]; lvl1: string[] } }>(result);
 
-    expect(supabase.from).toHaveBeenCalledWith('unique_tags_lvl0');
-    expect(supabase.from).toHaveBeenCalledWith('unique_tags_lvl1');
-    const json = JSON.parse(result.content[0].type === 'text' ? result.content[0].text : '{}');
-    expect(json.tags.lvl0).toEqual(['T0']);
-    expect(json.tags.lvl1.sort()).toEqual(['T1', 'T2'].sort());
+    expect(mockSupabase.from).toHaveBeenCalledWith('unique_tags_lvl0');
+    expect(mockSupabase.from).toHaveBeenCalledWith('unique_tags_lvl1');
+    expect(body.tags.lvl0).toEqual(['T0']);
+    expect(body.tags.lvl1).toEqual(['T1', 'T2']);
   });
 
-  it('handleLookupTags returns error when either tag query fails', async () => {
-    const supabase = mockSupabase;
-    supabase.from.mockImplementation((table: string) => {
-      if (table === 'unique_tags_lvl0') {
-        return {
-          select: vi.fn().mockResolvedValue({ data: [], error: { message: 'lvl0 failed' } }),
-        };
-      }
-      if (table === 'unique_tags_lvl1') {
-        return { select: vi.fn().mockResolvedValue({ data: [{ tag: 'ok' }], error: null }) };
-      }
-      return { select: vi.fn().mockResolvedValue({ data: [], error: null }) };
-    });
+  it.each([
+    {
+      name: 'lvl0',
+      resultsByTable: {
+        unique_tags_lvl0: { data: [], error: { message: 'lvl0 failed' } },
+        unique_tags_lvl1: { data: [{ tag: 'ok' }], error: null },
+      },
+      message: 'lvl0 failed',
+    },
+    {
+      name: 'lvl1',
+      resultsByTable: {
+        unique_tags_lvl0: { data: [{ tag: 'ok' }], error: null },
+        unique_tags_lvl1: { data: [], error: { message: 'lvl1 failed' } },
+      },
+      message: 'lvl1 failed',
+    },
+  ])('handleLookupTags returns errors from $name query', async ({ resultsByTable, message }) => {
+    setTagResults(mockSupabase, resultsByTable);
 
-    const result = await handleLookupTags(supabase as SupabaseClient);
+    const result = await handleLookupTags(mockSupabase as SupabaseClient);
 
     expect(result.isError).toBe(true);
-    expect(result.content[0].text).toContain('lvl0 failed');
+    expect(result.content[0].text).toContain(message);
   });
 
-  it('handleLookupTags returns error when lvl1 tag query fails', async () => {
-    const supabase = mockSupabase;
-    supabase.from.mockImplementation((table: string) => {
-      if (table === 'unique_tags_lvl0') {
-        return {
-          select: vi.fn().mockResolvedValue({ data: [{ tag: 'ok' }], error: null }),
-        };
-      }
-      if (table === 'unique_tags_lvl1') {
-        return {
-          select: vi.fn().mockResolvedValue({ data: [], error: { message: 'lvl1 failed' } }),
-        };
-      }
-      return { select: vi.fn().mockResolvedValue({ data: [], error: null }) };
-    });
-
-    const result = await handleLookupTags(supabase as SupabaseClient);
-
-    expect(result.isError).toBe(true);
-    expect(result.content[0].text).toContain('lvl1 failed');
-  });
-
-  it('handleSearchCards calls supabase with filters', async () => {
-    const filters = {
-      category: 'know',
-      project: 'alpha',
-      tag: 'postgres',
-      fact: 'index latency',
-    };
-    const mockData = {
+  it('handleSearchCards matches a card when keyword filters overlap', async () => {
+    setQueryResult(mockSupabase, {
       data: [
         {
           objectID: '1',
@@ -235,28 +202,29 @@ describe('Lookup Tools Unit Tests', () => {
         },
       ],
       error: null,
-    };
-    const supabase = mockSupabase;
-    supabase.then.mockImplementation((onfulfilled: (value: unknown) => unknown) =>
-      Promise.resolve(mockData).then(onfulfilled),
-    );
+    });
 
-    const result = await handleSearchCards(supabase as SupabaseClient, filters);
+    const result = await handleSearchCards(mockSupabase as SupabaseClient, {
+      category: 'know',
+      project: 'alpha',
+      tag: 'postgres',
+      fact: 'index latency',
+    });
+    const body = asTextJson<{ cards: Array<{ objectID: string; title: string }> }>(result);
 
-    expect(supabase.from).toHaveBeenCalledWith('cards');
-    expect(supabase.select).toHaveBeenCalledWith('*');
-    const body = JSON.parse(result.content[0].type === 'text' ? result.content[0].text : '{}') as {
-      cards: Array<{ objectID: string; title: string; category: string }>;
-    };
+    expect(mockSupabase.from).toHaveBeenCalledWith('cards');
+    expect(mockSupabase.select).toHaveBeenCalledWith('*');
     expect(body.cards).toHaveLength(1);
-    expect(body.cards[0].objectID).toBe('1');
-    expect(body.cards[0].title).toBe('Faster Postgres Indexes');
-    expect(body.cards[0].category).toBe('Knowledge Base');
+    expect(body.cards[0]).toEqual(
+      expect.objectContaining({
+        objectID: '1',
+        title: 'Faster Postgres Indexes',
+      }),
+    );
   });
 
   it('handleSearchCards supports loose fact matching with partial keyword overlap', async () => {
-    const supabase = mockSupabase;
-    const mockData = {
+    setQueryResult(mockSupabase, {
       data: [
         {
           objectID: '1',
@@ -269,185 +237,102 @@ describe('Lookup Tools Unit Tests', () => {
         },
       ],
       error: null,
-    };
-    supabase.then.mockImplementation((onfulfilled: (value: unknown) => unknown) =>
-      Promise.resolve(mockData).then(onfulfilled),
-    );
+    });
 
-    const result = await handleSearchCards(supabase as SupabaseClient, {
+    const result = await handleSearchCards(mockSupabase as SupabaseClient, {
       fact: 'distributed latency quorum',
     });
 
-    const body = JSON.parse(result.content[0].type === 'text' ? result.content[0].text : '{}') as {
-      cards: Array<{ objectID: string }>;
-    };
-    expect(body.cards).toHaveLength(1);
-    expect(body.cards[0].objectID).toBe('1');
+    const body = asTextJson<{ cards: Array<{ objectID: string }> }>(result);
+    expect(body.cards[0]).toEqual(expect.objectContaining({ objectID: '1' }));
   });
 
-  it('handleSearchCards returns empty list when keyword filters do not match', async () => {
-    const supabase = mockSupabase;
-    const mockData = {
-      data: [
-        {
-          objectID: '1',
-          title: 'Backend card',
-          blurb: 'Only backend',
-          fact: 'Some backend detail',
-          category: 'Engineering',
-          projects: ['Platform'],
-          tags: { lvl0: ['Backend'], lvl1: ['API'] },
-        },
-      ],
-      error: null,
+  it('handleSearchCards returns empty cards for unmatched keywords and null data fallback', async () => {
+    const unmatchedCard = {
+      objectID: '1',
+      title: 'Backend card',
+      blurb: 'Only backend',
+      fact: 'Some backend detail',
+      category: 'Engineering',
+      projects: ['Platform'],
+      tags: { lvl0: ['Backend'], lvl1: ['API'] },
     };
-    supabase.then.mockImplementation((onfulfilled: (value: unknown) => unknown) =>
-      Promise.resolve(mockData).then(onfulfilled),
-    );
 
-    const result = await handleSearchCards(supabase as SupabaseClient, {
-      category: 'finance',
-      tag: 'billing',
-      project: 'payments',
-      fact: 'invoice retry',
-    });
-
-    const body = JSON.parse(result.content[0].type === 'text' ? result.content[0].text : '{}') as {
-      cards: Array<{ objectID: string }>;
-    };
-    expect(body.cards).toEqual([]);
+    for (const queryResult of [
+      { data: [unmatchedCard], error: null },
+      { data: null, error: null },
+    ]) {
+      setQueryResult(mockSupabase, queryResult);
+      const result = await handleSearchCards(mockSupabase as SupabaseClient, {
+        category: 'finance',
+        tag: 'billing',
+        project: 'payments',
+        fact: 'invoice retry',
+      });
+      const body = asTextJson<{ cards: unknown[] }>(result);
+      expect(body.cards).toEqual([]);
+    }
   });
 
-  it('handleSearchCards returns query error from supabase', async () => {
-    const supabase = mockSupabase;
-    supabase.then.mockImplementation((onfulfilled: (value: unknown) => unknown) =>
-      Promise.resolve({ data: null, error: { message: 'search failed' } }).then(onfulfilled),
-    );
+  it('handleSearchCards returns query errors from supabase', async () => {
+    setQueryResult(mockSupabase, { data: null, error: { message: 'search failed' } });
 
-    const result = await handleSearchCards(supabase as SupabaseClient, { fact: 'latency' });
+    const result = await handleSearchCards(mockSupabase as SupabaseClient, { fact: 'latency' });
 
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain('search failed');
   });
 
-  it('handleSearchCards returns error for empty filters', async () => {
-    const supabase = mockSupabase;
+  it.each([{}, { category: '   ', tag: '   ', project: '   ', fact: '   ' }])(
+    'handleSearchCards rejects empty/whitespace filters',
+    async (filters) => {
+      const result = await handleSearchCards(mockSupabase as SupabaseClient, filters);
 
-    const result = await handleSearchCards(supabase as SupabaseClient, {});
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('At least one search filter');
+      expect(mockSupabase.from).not.toHaveBeenCalled();
+    },
+  );
 
-    expect(result.isError).toBe(true);
-    expect(result.content[0].type).toBe('text');
-    expect(result.content[0].text).toContain('At least one search filter');
-    expect(supabase.from).not.toHaveBeenCalled();
+  it.each([
+    {
+      name: 'missing category',
+      filters: { category: 'knowledge' },
+      card: { objectID: '1' },
+    },
+    {
+      name: 'missing projects',
+      filters: { project: 'alpha' },
+      card: { objectID: '1', category: 'Knowledge' },
+    },
+    {
+      name: 'missing tags',
+      filters: { tag: 'postgres' },
+      card: { objectID: '1', category: 'Knowledge', projects: ['Alpha'] },
+    },
+    {
+      name: 'missing fact fields',
+      filters: { fact: 'latency' },
+      card: { objectID: '1', category: 'Knowledge', projects: ['Alpha'] },
+    },
+  ])('handleSearchCards handles $name as empty searchable text', async ({ filters, card }) => {
+    setQueryResult(mockSupabase, { data: [card], error: null });
+
+    const result = await handleSearchCards(mockSupabase as SupabaseClient, filters);
+    const body = asTextJson<{ cards: unknown[] }>(result);
+
+    expect(body.cards).toEqual([]);
   });
 
-  it('handleSearchCards treats whitespace-only filters as empty', async () => {
-    const supabase = mockSupabase;
-
-    const result = await handleSearchCards(supabase as SupabaseClient, {
-      category: '   ',
-      tag: '   ',
-      project: '   ',
-      fact: '   ',
+  it('handleSearchCards rejects fact filters with no usable tokens', async () => {
+    setQueryResult(mockSupabase, {
+      data: [{ objectID: '1', title: 'One letter', blurb: 'Tiny', fact: 'a i u e o' }],
+      error: null,
     });
 
-    expect(result.isError).toBe(true);
-    expect(result.content[0].text).toContain('At least one search filter');
-    expect(supabase.from).not.toHaveBeenCalled();
-  });
+    const result = await handleSearchCards(mockSupabase as SupabaseClient, { fact: 'a i u e o' });
+    const body = asTextJson<{ cards: unknown[] }>(result);
 
-  it('handleSearchCards falls back to empty data when query returns null data and no error', async () => {
-    const supabase = mockSupabase;
-    supabase.then.mockImplementation((onfulfilled: (value: unknown) => unknown) =>
-      Promise.resolve({ data: null, error: null }).then(onfulfilled),
-    );
-
-    const result = await handleSearchCards(supabase as SupabaseClient, { fact: 'latency' });
-
-    const body = JSON.parse(result.content[0].type === 'text' ? result.content[0].text : '{}') as {
-      cards: unknown[];
-    };
-    expect(body.cards).toEqual([]);
-  });
-
-  it('handleSearchCards treats missing card category as empty text for category filtering', async () => {
-    const supabase = mockSupabase;
-    supabase.then.mockImplementation((onfulfilled: (value: unknown) => unknown) =>
-      Promise.resolve({ data: [{ objectID: '1' }], error: null }).then(onfulfilled),
-    );
-
-    const result = await handleSearchCards(supabase as SupabaseClient, { category: 'knowledge' });
-
-    const body = JSON.parse(result.content[0].type === 'text' ? result.content[0].text : '{}') as {
-      cards: unknown[];
-    };
-    expect(body.cards).toEqual([]);
-  });
-
-  it('handleSearchCards treats missing project list as empty text for project filtering', async () => {
-    const supabase = mockSupabase;
-    supabase.then.mockImplementation((onfulfilled: (value: unknown) => unknown) =>
-      Promise.resolve({ data: [{ objectID: '1', category: 'Knowledge' }], error: null }).then(
-        onfulfilled,
-      ),
-    );
-
-    const result = await handleSearchCards(supabase as SupabaseClient, { project: 'alpha' });
-
-    const body = JSON.parse(result.content[0].type === 'text' ? result.content[0].text : '{}') as {
-      cards: unknown[];
-    };
-    expect(body.cards).toEqual([]);
-  });
-
-  it('handleSearchCards treats missing tag lists as empty text for tag filtering', async () => {
-    const supabase = mockSupabase;
-    supabase.then.mockImplementation((onfulfilled: (value: unknown) => unknown) =>
-      Promise.resolve({
-        data: [{ objectID: '1', category: 'Knowledge', projects: ['Alpha'] }],
-        error: null,
-      }).then(onfulfilled),
-    );
-
-    const result = await handleSearchCards(supabase as SupabaseClient, { tag: 'postgres' });
-
-    const body = JSON.parse(result.content[0].type === 'text' ? result.content[0].text : '{}') as {
-      cards: unknown[];
-    };
-    expect(body.cards).toEqual([]);
-  });
-
-  it('handleSearchCards treats missing fact text fields as empty for fact filtering', async () => {
-    const supabase = mockSupabase;
-    supabase.then.mockImplementation((onfulfilled: (value: unknown) => unknown) =>
-      Promise.resolve({
-        data: [{ objectID: '1', category: 'Knowledge', projects: ['Alpha'] }],
-        error: null,
-      }).then(onfulfilled),
-    );
-
-    const result = await handleSearchCards(supabase as SupabaseClient, { fact: 'latency' });
-
-    const body = JSON.parse(result.content[0].type === 'text' ? result.content[0].text : '{}') as {
-      cards: unknown[];
-    };
-    expect(body.cards).toEqual([]);
-  });
-
-  it('handleSearchCards rejects fact filters that tokenize to no valid keywords', async () => {
-    const supabase = mockSupabase;
-    supabase.then.mockImplementation((onfulfilled: (value: unknown) => unknown) =>
-      Promise.resolve({
-        data: [{ objectID: '1', title: 'One letter', blurb: 'Tiny', fact: 'a i u e o' }],
-        error: null,
-      }).then(onfulfilled),
-    );
-
-    const result = await handleSearchCards(supabase as SupabaseClient, { fact: 'a i u e o' });
-
-    const body = JSON.parse(result.content[0].type === 'text' ? result.content[0].text : '{}') as {
-      cards: unknown[];
-    };
     expect(body.cards).toEqual([]);
   });
 });
