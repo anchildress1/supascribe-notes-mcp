@@ -21,9 +21,9 @@ describe('SupabaseTokenVerifier', () => {
     const payload = { exp: 1234567890 };
     const payloadBase64 = Buffer.from(JSON.stringify(payload))
       .toString('base64')
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
-      .replace(/=/g, '');
+      .replaceAll('+', '-')
+      .replaceAll('/', '_')
+      .replaceAll('=', '');
     const token = `header.${payloadBase64}.signature`;
 
     mockGetUser.mockResolvedValue({
@@ -89,9 +89,9 @@ describe('SupabaseTokenVerifier', () => {
     const payload = { exp: 'not-a-number' };
     const payloadBase64 = Buffer.from(JSON.stringify(payload))
       .toString('base64')
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
-      .replace(/=/g, '');
+      .replaceAll('+', '-')
+      .replaceAll('/', '_')
+      .replaceAll('=', '');
     const token = `header.${payloadBase64}.signature`;
 
     mockGetUser.mockResolvedValue({
