@@ -19,6 +19,53 @@ export function createOpenApiSpec(serverUrl: string, serverVersion = '1.0.0'): o
     return (jsonSchema as JsonSchemaWithDefinitions).definitions?.[name] || jsonSchema;
   };
 
+  const jsonSchemaContent = (schemaRef: string) => ({
+    'application/json': {
+      schema: {
+        $ref: schemaRef,
+      },
+    },
+  });
+
+  const schemaResponse = (description: string, schemaRef: string) => ({
+    description,
+    content: jsonSchemaContent(schemaRef),
+  });
+
+  const authErrorResponses = {
+    '401': {
+      description: 'Unauthorized - Invalid or missing token',
+    },
+    '500': {
+      description: 'Internal Server Error',
+    },
+  };
+
+  const validationAuthErrorResponses = {
+    '400': {
+      description: 'Bad Request - Validation Error',
+    },
+    ...authErrorResponses,
+  };
+
+  const readOnlyOperationBase = {
+    'x-openai-isConsequential': false,
+    security: [{ BearerAuth: [] }],
+  };
+
+  const writeOperationBase = {
+    'x-openai-isConsequential': true,
+    security: [{ BearerAuth: [] }],
+  };
+
+  const cardsResponseSchema = {
+    type: 'object',
+    properties: {
+      cards: { type: 'array', items: { $ref: '#/components/schemas/Card' } },
+    },
+    required: ['cards'],
+  };
+
   return {
     openapi: '3.1.0',
     info: {
@@ -80,20 +127,7 @@ export function createOpenApiSpec(serverUrl: string, serverVersion = '1.0.0'): o
           },
           required: ['tags'],
         },
-        LookupCardByIdResponse: {
-          type: 'object',
-          properties: {
-            cards: { type: 'array', items: { $ref: '#/components/schemas/Card' } },
-          },
-          required: ['cards'],
-        },
-        SearchCardsResponse: {
-          type: 'object',
-          properties: {
-            cards: { type: 'array', items: { $ref: '#/components/schemas/Card' } },
-          },
-          required: ['cards'],
-        },
+        CardsResponse: cardsResponseSchema,
       },
       securitySchemes: {
         BearerAuth: {
@@ -129,11 +163,10 @@ export function createOpenApiSpec(serverUrl: string, serverVersion = '1.0.0'): o
       '/api/write-cards': {
         post: {
           operationId: 'writeCards',
-          'x-openai-isConsequential': true,
+          ...writeOperationBase,
           summary: 'Write index cards to Supabase',
           description:
             'Validates and upserts index cards to the database with revision history. This is a consequential action.',
-          security: [{ BearerAuth: [] }],
           requestBody: {
             required: true,
             content: {
@@ -171,26 +204,17 @@ export function createOpenApiSpec(serverUrl: string, serverVersion = '1.0.0'): o
                 },
               },
             },
-            '400': {
-              description: 'Bad Request - Validation Error',
-            },
-            '401': {
-              description: 'Unauthorized - Invalid or missing token',
-            },
-            '500': {
-              description: 'Internal Server Error',
-            },
+            ...validationAuthErrorResponses,
           },
         },
       },
       '/api/lookup-card-by-id': {
         post: {
           operationId: 'lookupCardById',
-          'x-openai-isConsequential': false,
+          ...readOnlyOperationBase,
           summary: 'Lookup cards by ID',
           description:
             'Find specific cards using a list of UUIDs. Unknown IDs are omitted from the response, so the returned `cards` array may be empty.',
-          security: [{ BearerAuth: [] }],
           requestBody: {
             required: true,
             content: {
@@ -202,117 +226,60 @@ export function createOpenApiSpec(serverUrl: string, serverVersion = '1.0.0'): o
             },
           },
           responses: {
-            '200': {
-              description: 'Card lookup result',
-              content: {
-                'application/json': {
-                  schema: {
-                    $ref: '#/components/schemas/LookupCardByIdResponse',
-                  },
-                },
-              },
-            },
-            '400': {
-              description: 'Bad Request - Validation Error',
-            },
-            '401': {
-              description: 'Unauthorized - Invalid or missing token',
-            },
-            '500': {
-              description: 'Internal Server Error',
-            },
+            '200': schemaResponse('Card lookup result', '#/components/schemas/CardsResponse'),
+            ...validationAuthErrorResponses,
           },
         },
       },
       '/api/lookup-categories': {
         get: {
           operationId: 'lookupCategories',
-          'x-openai-isConsequential': false,
+          ...readOnlyOperationBase,
           summary: 'Lookup unique categories',
           description: 'Get all unique card categories.',
-          security: [{ BearerAuth: [] }],
           responses: {
-            '200': {
-              description: 'Unique categories list',
-              content: {
-                'application/json': {
-                  schema: {
-                    $ref: '#/components/schemas/LookupCategoriesResponse',
-                  },
-                },
-              },
-            },
-            '401': {
-              description: 'Unauthorized - Invalid or missing token',
-            },
-            '500': {
-              description: 'Internal Server Error',
-            },
+            '200': schemaResponse(
+              'Unique categories list',
+              '#/components/schemas/LookupCategoriesResponse',
+            ),
+            ...authErrorResponses,
           },
         },
       },
       '/api/lookup-projects': {
         get: {
           operationId: 'lookupProjects',
-          'x-openai-isConsequential': false,
+          ...readOnlyOperationBase,
           summary: 'Lookup unique projects',
           description: 'Get all unique card project identifiers.',
-          security: [{ BearerAuth: [] }],
           responses: {
-            '200': {
-              description: 'Unique projects list',
-              content: {
-                'application/json': {
-                  schema: {
-                    $ref: '#/components/schemas/LookupProjectsResponse',
-                  },
-                },
-              },
-            },
-            '401': {
-              description: 'Unauthorized - Invalid or missing token',
-            },
-            '500': {
-              description: 'Internal Server Error',
-            },
+            '200': schemaResponse(
+              'Unique projects list',
+              '#/components/schemas/LookupProjectsResponse',
+            ),
+            ...authErrorResponses,
           },
         },
       },
       '/api/lookup-tags': {
         get: {
           operationId: 'lookupTags',
-          'x-openai-isConsequential': false,
+          ...readOnlyOperationBase,
           summary: 'Lookup unique tags',
           description: 'Get all unique lvl0 and lvl1 tags.',
-          security: [{ BearerAuth: [] }],
           responses: {
-            '200': {
-              description: 'Unique tags',
-              content: {
-                'application/json': {
-                  schema: {
-                    $ref: '#/components/schemas/LookupTagsResponse',
-                  },
-                },
-              },
-            },
-            '401': {
-              description: 'Unauthorized - Invalid or missing token',
-            },
-            '500': {
-              description: 'Internal Server Error',
-            },
+            '200': schemaResponse('Unique tags', '#/components/schemas/LookupTagsResponse'),
+            ...authErrorResponses,
           },
         },
       },
       '/api/search-cards': {
         post: {
           operationId: 'searchCards',
-          'x-openai-isConsequential': false,
+          ...readOnlyOperationBase,
           summary: 'Search cards',
           description:
             'Search cards by keyword hints for category, tag, project, and fact content. Use concise keywords, not full sentences.',
-          security: [{ BearerAuth: [] }],
           requestBody: {
             required: true,
             content: {
@@ -324,25 +291,8 @@ export function createOpenApiSpec(serverUrl: string, serverVersion = '1.0.0'): o
             },
           },
           responses: {
-            '200': {
-              description: 'Search results',
-              content: {
-                'application/json': {
-                  schema: {
-                    $ref: '#/components/schemas/SearchCardsResponse',
-                  },
-                },
-              },
-            },
-            '400': {
-              description: 'Bad Request - Validation Error',
-            },
-            '401': {
-              description: 'Unauthorized - Invalid or missing token',
-            },
-            '500': {
-              description: 'Internal Server Error',
-            },
+            '200': schemaResponse('Search results', '#/components/schemas/CardsResponse'),
+            ...validationAuthErrorResponses,
           },
         },
       },
