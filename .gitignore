@@ -3,6 +3,7 @@ dist/
 coverage/
 *.tmp
 .temp/
+.vscode/
 
 .env*
 !.env.example
