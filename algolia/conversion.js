@@ -5,10 +5,7 @@
  * @param {Helper} helper - Use it to reference Secrets and get Metadata.
  * @returns {SourceRecord|Array<SourceRecord>|undefined} - Return a record, an array of records, or undefined to skip.
  */
-async function transform(record, helper) {
-  // Keep runtime signature stable for Algolia even when helper is not needed.
-  const _helperPresent = typeof helper?.getMetadata === 'function';
-
+async function transform(record, _helper) {
   if (record.deleted_at) return undefined;
 
   const toStringArray = (value) => {
