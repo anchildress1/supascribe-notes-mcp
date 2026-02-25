@@ -6,7 +6,8 @@
  * @returns {SourceRecord|Array<SourceRecord>|undefined} - Return a record, an array of records, or undefined to skip.
  */
 async function transform(record, helper) {
-  void helper;
+  // Keep runtime signature stable for Algolia even when helper is not needed.
+  const _helperPresent = typeof helper?.getMetadata === 'function';
 
   if (record.deleted_at) return undefined;
 
@@ -42,5 +43,4 @@ async function transform(record, helper) {
 
   return record;
 }
-
-void transform;
+globalThis.transform = transform;

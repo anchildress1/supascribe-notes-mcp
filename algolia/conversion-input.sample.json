@@ -6,7 +6,7 @@
   "url": "https://example.com/mcp-schema",
   "tags": {
     "lvl0": ["engineering", "mcp"],
-    "lvl1": ["schema", "validation"]
+    "lvl1": ["engineering > schema", "mcp > validation"]
   },
   "projects": ["supascribe-notes-mcp"],
   "category": "reference",
