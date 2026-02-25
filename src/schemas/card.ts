@@ -1,21 +1,20 @@
 import * as z from 'zod';
 
+const TagListSchema = z.array(z.string().trim().min(1, 'tag values must not be empty'));
+
 export const TagsSchema = z
   .object({
-    lvl0: z
-      .array(z.string())
-      .optional()
-      .describe(
-        'Broad, high-level categories or extensive themes. E.g., "Engineering", "Design", "Product".',
-      ),
-    lvl1: z
-      .array(z.string())
-      .optional()
-      .describe(
-        'Specific, granular tags or sub-themes. E.g., "React", "User Research", "Q3 Goals".',
-      ),
+    lvl0: TagListSchema.describe(
+      'Broad, high-level categories or extensive themes. E.g., "Engineering", "Design", "Product".',
+    ),
+    lvl1: TagListSchema.describe(
+      'Specific, granular tags or sub-themes. E.g., "React", "User Research", "Q3 Goals".',
+    ),
   })
-  .describe('Hierarchical tags for the card. lvl0 are broad categories, lvl1 are specific tags.');
+  .strict()
+  .describe(
+    'Hierarchical tags for the card. Always provide explicit arrays for tags.lvl0 and tags.lvl1.',
+  );
 
 export const CardInputSchema = z.object({
   objectID: z

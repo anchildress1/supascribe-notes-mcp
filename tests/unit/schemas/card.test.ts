@@ -7,17 +7,21 @@ import {
 } from '../../../src/schemas/card.js';
 
 describe('TagsSchema', () => {
-  it('accepts empty object', () => {
-    expect(TagsSchema.parse({})).toEqual({});
+  it('rejects empty object', () => {
+    expect(() => TagsSchema.parse({})).toThrow();
   });
 
-  it('accepts lvl0 only', () => {
-    expect(TagsSchema.parse({ lvl0: ['a', 'b'] })).toEqual({ lvl0: ['a', 'b'] });
+  it('rejects lvl0-only payloads', () => {
+    expect(() => TagsSchema.parse({ lvl0: ['a', 'b'] })).toThrow();
   });
 
   it('accepts both lvl0 and lvl1', () => {
     const tags = { lvl0: ['tech'], lvl1: ['ai', 'ml'] };
     expect(TagsSchema.parse(tags)).toEqual(tags);
+  });
+
+  it('rejects unexpected keys to keep tag shape strict', () => {
+    expect(() => TagsSchema.parse({ lvl0: ['tech'], extra: ['oops'] })).toThrow();
   });
 });
 
@@ -27,7 +31,7 @@ describe('CardInputSchema', () => {
     blurb: 'A test blurb',
     fact: 'An interesting fact',
     url: 'https://example.com',
-    tags: { lvl0: ['tech'] },
+    tags: { lvl0: ['tech'], lvl1: [] },
     projects: ['project-a'],
     category: 'reference',
     signal: 3,
@@ -37,6 +41,7 @@ describe('CardInputSchema', () => {
     const result = CardInputSchema.parse(validCard);
     expect(result.title).toBe('Test Card');
     expect(result.signal).toBe(3);
+    expect(result.tags).toEqual({ lvl0: ['tech'], lvl1: [] });
   });
 
   it('accepts a card without optional objectID', () => {
@@ -126,7 +131,7 @@ describe('WriteCardsInputSchema', () => {
     title: 'Card',
     blurb: 'Blurb',
     fact: 'Fact',
-    tags: {},
+    tags: { lvl0: [], lvl1: [] },
     category: 'test',
     signal: 1,
   };

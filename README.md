@@ -155,7 +155,7 @@ To fully test the MCP functionality, configure your MCP client to connect to the
   "blurb": "string (required)",
   "fact": "string (required)",
   "url": "string (optional, must be valid URL)",
-  "tags": { "lvl0": ["string"], "lvl1": ["string"] },
+  "tags": { "lvl0": ["string"], "lvl1": ["string"] }, // both arrays are required (use [] when empty)
   "projects": ["string"],
   "category": "string (required)",
   "signal": "number 1–5 (required)",

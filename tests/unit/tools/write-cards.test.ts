@@ -92,7 +92,7 @@ const validCard: CardInput = {
   title: 'Test Card',
   blurb: 'A test blurb',
   fact: 'An interesting fact',
-  tags: { lvl0: ['tech'] },
+  tags: { lvl0: ['tech'], lvl1: [] },
   projects: ['project-a'],
   category: 'reference',
   signal: 3,

@@ -243,6 +243,24 @@ describe('MCP Server Integration', () => {
         ?.cards?.type,
     ).toBe('array');
 
+    const writeCardsItems = (
+      (
+        writeTool.inputSchema as {
+          properties?: Record<string, { items?: { properties?: Record<string, unknown> } }>;
+        }
+      ).properties?.cards?.items as { properties?: Record<string, unknown> }
+    )?.properties;
+    const tagsSchema = writeCardsItems?.tags as
+      | {
+          properties?: Record<string, { type?: string }>;
+          required?: string[];
+        }
+      | undefined;
+    expect(tagsSchema).toBeDefined();
+    expect(tagsSchema?.properties?.lvl0?.type).toBe('array');
+    expect(tagsSchema?.properties?.lvl1?.type).toBe('array');
+    expect(tagsSchema?.required).toEqual(expect.arrayContaining(['lvl0', 'lvl1']));
+
     for (const name of expectedToolNames) {
       const tool = tools.find((candidate) => candidate.name === name) as
         | {

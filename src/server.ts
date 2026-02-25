@@ -423,7 +423,8 @@ export function createMcpServer(supabase: SupabaseClient, serverVersion = '1.0.0
     'write_cards',
     {
       title: 'Write Index Cards',
-      description: 'Validate and upsert index cards to Supabase with revision history',
+      description:
+        'Validate and upsert index cards to Supabase with revision history. tags must include explicit tags.lvl0 and tags.lvl1 arrays.',
       inputSchema: WriteCardsInputSchema,
       annotations: {
         readOnlyHint: false,
