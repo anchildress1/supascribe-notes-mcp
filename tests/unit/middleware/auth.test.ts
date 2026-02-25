@@ -1,12 +1,13 @@
-import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
 import type { Request, Response, NextFunction } from 'express';
 import { createAuthMiddleware } from '../../../src/middleware/auth.js';
 import type { SupabaseTokenVerifier } from '../../../src/lib/auth-provider.js';
+import { logger } from '../../../src/lib/logger.js';
 
 describe('Auth Middleware', () => {
   let mockVerifier: SupabaseTokenVerifier;
-  let mockReq: Partial<Request>;
-  let mockRes: Partial<Response>;
+  let mockReq: Request;
+  let mockRes: Response;
   let next: NextFunction;
   const publicUrl = 'http://localhost:8080';
 
@@ -21,7 +22,7 @@ describe('Auth Middleware', () => {
       path: '/',
       originalUrl: '/',
       accepts: vi.fn().mockReturnValue(false), // Default to not accepting HTML
-    } as unknown as Partial<Request>;
+    } as unknown as Request;
 
     mockRes = {
       status: vi.fn().mockReturnThis(),
@@ -29,16 +30,20 @@ describe('Auth Middleware', () => {
       send: vi.fn(),
       set: vi.fn().mockReturnThis(),
       type: vi.fn().mockReturnThis(),
-    } as unknown as Partial<Response>;
+    } as unknown as Response;
 
     next = vi.fn();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('returns 401 if token is in query param but not header', async () => {
     mockReq.query = { token: 'valid-token' };
     const middleware = createAuthMiddleware(mockVerifier, publicUrl);
 
-    await middleware(mockReq as Request, mockRes as Response, next);
+    await middleware(mockReq, mockRes, next);
 
     expect(mockRes.status).toHaveBeenCalledWith(401);
     expect(mockRes.send).toHaveBeenCalledWith('Unauthorized');
@@ -51,7 +56,7 @@ describe('Auth Middleware', () => {
     (mockVerifier.verifyAccessToken as Mock).mockResolvedValue({ userId: '123' });
     const middleware = createAuthMiddleware(mockVerifier, publicUrl);
 
-    await middleware(mockReq as Request, mockRes as Response, next);
+    await middleware(mockReq, mockRes, next);
 
     expect(mockVerifier.verifyAccessToken).toHaveBeenCalledWith('header-token');
     expect(next).toHaveBeenCalled();
@@ -63,7 +68,7 @@ describe('Auth Middleware', () => {
     mockReq.originalUrl = '/some-page';
     const middleware = createAuthMiddleware(mockVerifier, publicUrl);
 
-    await middleware(mockReq as Request, mockRes as Response, next);
+    await middleware(mockReq, mockRes, next);
 
     expect(mockReq.accepts).toHaveBeenCalledWith('html');
     expect(mockRes.status).toHaveBeenCalledWith(401);
@@ -78,7 +83,7 @@ describe('Auth Middleware', () => {
     mockReq.originalUrl = '/mcp';
     const middleware = createAuthMiddleware(mockVerifier, publicUrl);
 
-    await middleware(mockReq as Request, mockRes as Response, next);
+    await middleware(mockReq, mockRes, next);
 
     expect(mockRes.status).toHaveBeenCalledWith(401);
     expect(mockRes.type).toHaveBeenCalledWith('text/plain');
@@ -94,7 +99,7 @@ describe('Auth Middleware', () => {
     (mockReq.accepts as Mock).mockReturnValue(false);
     const middleware = createAuthMiddleware(mockVerifier, publicUrl);
 
-    await middleware(mockReq as Request, mockRes as Response, next);
+    await middleware(mockReq, mockRes, next);
 
     expect(mockRes.status).toHaveBeenCalledWith(401);
     expect(mockRes.type).toHaveBeenCalledWith('text/plain');
@@ -112,11 +117,25 @@ describe('Auth Middleware', () => {
 
     const middleware = createAuthMiddleware(mockVerifier, publicUrl);
 
-    await middleware(mockReq as Request, mockRes as Response, next);
+    await middleware(mockReq, mockRes, next);
 
     expect(mockVerifier.verifyAccessToken).toHaveBeenCalledWith('invalid-token');
     expect(mockRes.status).toHaveBeenCalledWith(401);
     expect(mockRes.send).toHaveBeenCalledWith('Invalid token');
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('returns 401 and logs warning for malformed Authorization header', async () => {
+    const warnSpy = vi.spyOn(logger, 'warn');
+    mockReq.headers = { authorization: 'Token malformed-value' };
+    const middleware = createAuthMiddleware(mockVerifier, publicUrl);
+
+    await middleware(mockReq, mockRes, next);
+
+    expect(warnSpy).toHaveBeenCalled();
+    expect(mockVerifier.verifyAccessToken).not.toHaveBeenCalled();
+    expect(mockRes.status).toHaveBeenCalledWith(401);
+    expect(mockRes.send).toHaveBeenCalledWith('Unauthorized');
     expect(next).not.toHaveBeenCalled();
   });
 
@@ -126,7 +145,7 @@ describe('Auth Middleware', () => {
 
     const middleware = createAuthMiddleware(mockVerifier, publicUrl);
 
-    await middleware(mockReq as Request, mockRes as Response, next);
+    await middleware(mockReq, mockRes, next);
 
     expect(mockVerifier.verifyAccessToken).toHaveBeenCalledWith('valid-token');
     expect(next).toHaveBeenCalled();

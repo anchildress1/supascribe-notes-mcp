@@ -18,7 +18,7 @@ describe('createOpenApiSpec', () => {
     expect(
       spec.paths['/api/lookup-card-by-id'].post.responses['200'].content['application/json'].schema
         .$ref,
-    ).toBe('#/components/schemas/LookupCardByIdResponse');
+    ).toBe('#/components/schemas/CardsResponse');
     expect(
       spec.paths['/api/lookup-categories'].get.responses['200'].content['application/json'].schema
         .$ref,
@@ -31,13 +31,19 @@ describe('createOpenApiSpec', () => {
       spec.paths['/api/lookup-tags'].get.responses['200'].content['application/json'].schema.$ref,
     ).toBe('#/components/schemas/LookupTagsResponse');
     expect(
-      spec.paths['/api/search-cards'].post.responses['200'].content['application/json'].schema.type,
-    ).toBe('array');
+      spec.paths['/api/search-cards'].post.responses['200'].content['application/json'].schema.$ref,
+    ).toBe('#/components/schemas/CardsResponse');
     expect(spec.components.schemas.CardInput).toBeDefined();
     expect(spec.components.schemas.Card).toBeDefined();
     expect(spec.components.schemas.CardInput.properties.title.description).toBeDefined();
+    expect(spec.components.schemas.CardInput.properties.tags.properties.lvl0.type).toBe('array');
+    expect(spec.components.schemas.CardInput.properties.tags.properties.lvl1.type).toBe('array');
+    expect(spec.components.schemas.CardInput.properties.tags.required).toEqual(
+      expect.arrayContaining(['lvl0', 'lvl1']),
+    );
     expect(spec.components.schemas.WriteCardsInput).toBeDefined();
     expect(spec.components.schemas.CardIdInput).toBeDefined();
     expect(spec.components.schemas.SearchCardsInput).toBeDefined();
+    expect(spec.components.schemas.CardsResponse).toBeDefined();
   });
 });

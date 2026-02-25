@@ -1,21 +1,20 @@
 import * as z from 'zod';
 
+const TagListSchema = z.array(z.string().trim().min(1, 'tag values must not be empty'));
+
 export const TagsSchema = z
   .object({
-    lvl0: z
-      .array(z.string())
-      .optional()
-      .describe(
-        'Broad, high-level categories or extensive themes. E.g., "Engineering", "Design", "Product".',
-      ),
-    lvl1: z
-      .array(z.string())
-      .optional()
-      .describe(
-        'Specific, granular tags or sub-themes. E.g., "React", "User Research", "Q3 Goals".',
-      ),
+    lvl0: TagListSchema.describe(
+      'Broad, high-level categories or extensive themes. E.g., "Engineering", "Design", "Product".',
+    ),
+    lvl1: TagListSchema.describe(
+      'Specific, granular tags or sub-themes. E.g., "React", "User Research", "Q3 Goals".',
+    ),
   })
-  .describe('Hierarchical tags for the card. lvl0 are broad categories, lvl1 are specific tags.');
+  .strict()
+  .describe(
+    'Hierarchical tags for the card. Always provide explicit arrays for tags.lvl0 and tags.lvl1.',
+  );
 
 export const CardInputSchema = z.object({
   objectID: z
@@ -105,40 +104,38 @@ export const CardIdInputSchema = z
 
 export const SearchCardsInputSchema = z
   .object({
-    title: z
-      .string()
-      .trim()
-      .min(1, 'title must not be empty')
-      .optional()
-      .describe('Search for cards matching this title or title fragment.'),
     category: z
       .string()
       .trim()
       .min(1, 'category must not be empty')
       .optional()
-      .describe('Filter by specific category.'),
+      .describe('Keyword category search. Use short keywords only, not full sentences.'),
+    tag: z
+      .string()
+      .trim()
+      .min(1, 'tag must not be empty')
+      .optional()
+      .describe(
+        'Keyword tag search across lvl0/lvl1 tags. Use concise keywords only (for example: "postgres", "workflow").',
+      ),
     project: z
       .string()
       .trim()
       .min(1, 'project must not be empty')
       .optional()
-      .describe('Filter by specific project identifier.'),
-    lvl0: z
-      .array(z.string().trim().min(1, 'lvl0 tag must not be empty'))
+      .describe('Keyword project search. Use short project keywords only.'),
+    fact: z
+      .string()
+      .trim()
+      .min(1, 'fact must not be empty')
       .optional()
-      .describe('Filter by specific lvl0 tags.'),
-    lvl1: z
-      .array(z.string().trim().min(1, 'lvl1 tag must not be empty'))
-      .optional()
-      .describe('Filter by specific lvl1 tags.'),
+      .describe(
+        'Loose fact search over title, blurb, and fact content. Use keywords only (for example: "indexing latency"), not long questions.',
+      ),
   })
   .refine(
     (data) =>
-      Boolean(data.title) ||
-      Boolean(data.category) ||
-      Boolean(data.project) ||
-      (data.lvl0?.length ?? 0) > 0 ||
-      (data.lvl1?.length ?? 0) > 0,
+      Boolean(data.category) || Boolean(data.tag) || Boolean(data.project) || Boolean(data.fact),
     { message: 'At least one search filter must be provided.' },
   );
 

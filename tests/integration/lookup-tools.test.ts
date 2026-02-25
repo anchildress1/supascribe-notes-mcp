@@ -57,8 +57,12 @@ vi.mock('../../src/lib/supabase.js', () => ({
             if (col === 'title') {
               result = result.filter((c) => c.title.toLowerCase().includes(pattern));
             }
+            if (col === 'category') {
+              result = result.filter((c) => c.category.toLowerCase().includes(pattern));
+            }
             return queryBuilder;
           }),
+          or: vi.fn().mockReturnThis(),
           contains: vi.fn().mockImplementation((col, val) => {
             if (col === 'projects') {
               const project = val[0];
@@ -200,7 +204,7 @@ describe('Lookup Tools Integration', () => {
     expect(res.statusCode).toBe(200);
     const body = res._getJSON() as { cards: Array<{ objectID: string }> };
     expect(body.cards).toHaveLength(2);
-    const ids = body.cards.map((card) => card.objectID).sort();
+    const ids = body.cards.map((card) => card.objectID).sort((a, b) => a.localeCompare(b));
     expect(ids).toEqual([
       '88888888-8888-8888-8888-888888888888',
       '99999999-9999-9999-9999-999999999999',
@@ -268,13 +272,13 @@ describe('Lookup Tools Integration', () => {
         ...authHeaders,
         'content-type': 'application/json',
       },
-      body: { title: 'another' },
+      body: { fact: 'another' },
     });
 
     expect(res.statusCode).toBe(200);
-    const body = res._getJSON() as Array<{ objectID: string; title: string }>;
-    expect(body).toHaveLength(1);
-    expect(body[0].title).toBe('Another Card');
+    const body = res._getJSON() as { cards: Array<{ objectID: string; title: string }> };
+    expect(body.cards).toHaveLength(1);
+    expect(body.cards[0].title).toBe('Another Card');
   });
 
   it('validates search_cards input', async () => {

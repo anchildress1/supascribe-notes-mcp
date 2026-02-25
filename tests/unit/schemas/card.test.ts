@@ -7,17 +7,21 @@ import {
 } from '../../../src/schemas/card.js';
 
 describe('TagsSchema', () => {
-  it('accepts empty object', () => {
-    expect(TagsSchema.parse({})).toEqual({});
+  it('rejects empty object', () => {
+    expect(() => TagsSchema.parse({})).toThrow();
   });
 
-  it('accepts lvl0 only', () => {
-    expect(TagsSchema.parse({ lvl0: ['a', 'b'] })).toEqual({ lvl0: ['a', 'b'] });
+  it('rejects lvl0-only payloads', () => {
+    expect(() => TagsSchema.parse({ lvl0: ['a', 'b'] })).toThrow();
   });
 
   it('accepts both lvl0 and lvl1', () => {
     const tags = { lvl0: ['tech'], lvl1: ['ai', 'ml'] };
     expect(TagsSchema.parse(tags)).toEqual(tags);
+  });
+
+  it('rejects unexpected keys to keep tag shape strict', () => {
+    expect(() => TagsSchema.parse({ lvl0: ['tech'], extra: ['oops'] })).toThrow();
   });
 });
 
@@ -27,7 +31,7 @@ describe('CardInputSchema', () => {
     blurb: 'A test blurb',
     fact: 'An interesting fact',
     url: 'https://example.com',
-    tags: { lvl0: ['tech'] },
+    tags: { lvl0: ['tech'], lvl1: [] },
     projects: ['project-a'],
     category: 'reference',
     signal: 3,
@@ -37,6 +41,7 @@ describe('CardInputSchema', () => {
     const result = CardInputSchema.parse(validCard);
     expect(result.title).toBe('Test Card');
     expect(result.signal).toBe(3);
+    expect(result.tags).toEqual({ lvl0: ['tech'], lvl1: [] });
   });
 
   it('accepts a card without optional objectID', () => {
@@ -53,6 +58,11 @@ describe('CardInputSchema', () => {
   it('accepts a card without url (optional)', () => {
     const { url: _, ...cardWithoutUrl } = validCard;
     const result = CardInputSchema.parse(cardWithoutUrl);
+    expect(result.url).toBeUndefined();
+  });
+
+  it('normalizes blank url values to undefined', () => {
+    const result = CardInputSchema.parse({ ...validCard, url: '   ' });
     expect(result.url).toBeUndefined();
   });
 
@@ -76,6 +86,10 @@ describe('CardInputSchema', () => {
 
   it('rejects invalid url', () => {
     expect(() => CardInputSchema.parse({ ...validCard, url: 'not-a-url' })).toThrow();
+  });
+
+  it('rejects non-string url values', () => {
+    expect(() => CardInputSchema.parse({ ...validCard, url: 123 as unknown as string })).toThrow();
   });
 
   it('rejects signal below 1', () => {
@@ -104,6 +118,12 @@ describe('CardInputSchema', () => {
     const result = CardInputSchema.parse({ ...validCard, created_at: `  ${created_at}  ` });
     expect(result.created_at).toBe(created_at);
   });
+
+  it('rejects non-string created_at values', () => {
+    expect(() =>
+      CardInputSchema.parse({ ...validCard, created_at: 123 as unknown as string }),
+    ).toThrow();
+  });
 });
 
 describe('WriteCardsInputSchema', () => {
@@ -111,7 +131,7 @@ describe('WriteCardsInputSchema', () => {
     title: 'Card',
     blurb: 'Blurb',
     fact: 'Fact',
-    tags: {},
+    tags: { lvl0: [], lvl1: [] },
     category: 'test',
     signal: 1,
   };
@@ -133,8 +153,17 @@ describe('WriteCardsInputSchema', () => {
 
 describe('SearchCardsInputSchema', () => {
   it('accepts at least one filter', () => {
-    const result = SearchCardsInputSchema.parse({ title: 'Test' });
-    expect(result.title).toBe('Test');
+    const result = SearchCardsInputSchema.parse({ fact: 'distributed systems' });
+    expect(result.fact).toBe('distributed systems');
+  });
+
+  it('accepts each supported keyword filter individually', () => {
+    expect(SearchCardsInputSchema.parse({ category: 'engineering' }).category).toBe('engineering');
+    expect(SearchCardsInputSchema.parse({ tag: 'postgres' }).tag).toBe('postgres');
+    expect(SearchCardsInputSchema.parse({ project: 'core platform' }).project).toBe(
+      'core platform',
+    );
+    expect(SearchCardsInputSchema.parse({ fact: 'retry budget' }).fact).toBe('retry budget');
   });
 
   it('rejects empty filters', () => {

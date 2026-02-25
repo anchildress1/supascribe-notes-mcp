@@ -12,7 +12,7 @@ A TypeScript MCP server that writes index cards to Supabase, deployed on Google 
 | `lookup_categories` | Get all unique categories used across cards                     |
 | `lookup_projects`   | Get all unique project identifiers used across cards            |
 | `lookup_tags`       | Get all unique lvl0/lvl1 tags used across cards                 |
-| `search_cards`      | Search cards by title, category, project, and hierarchical tags |
+| `search_cards`      | Keyword search by category/tag/project/fact with loose matching |
 
 ## Architecture
 
@@ -155,7 +155,7 @@ To fully test the MCP functionality, configure your MCP client to connect to the
   "blurb": "string (required)",
   "fact": "string (required)",
   "url": "string (optional, must be valid URL)",
-  "tags": { "lvl0": ["string"], "lvl1": ["string"] },
+  "tags": { "lvl0": ["string"], "lvl1": ["string"] }, // both arrays are required (use [] when empty)
   "projects": ["string"],
   "category": "string (required)",
   "signal": "number 1–5 (required)",
@@ -166,7 +166,7 @@ To fully test the MCP functionality, configure your MCP client to connect to the
 
 ## CI/CD
 
-- **GitHub Actions** — lint, test (80% coverage), secrets scan, build
+- **GitHub Actions** — lint, test (85% business-logic coverage), secrets scan, build
 - **Release Please** — conventional commit based semantic versioning
 - **Commitlint + rai-lint** — enforces AI attribution footers
 - **Lefthook** — git hooks for commit message validation

@@ -7,13 +7,22 @@ export default defineConfig({
     include: ['tests/**/*.test.ts'],
     coverage: {
       provider: 'v8',
-      include: ['src/**/*.ts'],
-      exclude: ['src/index.ts'],
+      all: true,
+      include: [
+        'src/config.ts',
+        'src/lib/auth-provider.ts',
+        'src/middleware/auth.ts',
+        'src/schemas/card.ts',
+        'src/tools/lookup-tools.ts',
+        'src/tools/write-cards.ts',
+      ],
+      reporter: ['text', 'json-summary', 'lcov', 'clover', 'html'],
       thresholds: {
-        lines: 80,
-        branches: 80,
-        functions: 80,
-        statements: 80,
+        perFile: true,
+        lines: 85,
+        branches: 85,
+        functions: 85,
+        statements: 85,
       },
     },
     env: {
