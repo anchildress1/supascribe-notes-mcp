@@ -204,7 +204,7 @@ describe('Lookup Tools Integration', () => {
     expect(res.statusCode).toBe(200);
     const body = res._getJSON() as { cards: Array<{ objectID: string }> };
     expect(body.cards).toHaveLength(2);
-    const ids = body.cards.map((card) => card.objectID).sort();
+    const ids = body.cards.map((card) => card.objectID).sort((a, b) => a.localeCompare(b));
     expect(ids).toEqual([
       '88888888-8888-8888-8888-888888888888',
       '99999999-9999-9999-9999-999999999999',
