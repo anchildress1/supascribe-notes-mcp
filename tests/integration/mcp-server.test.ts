@@ -67,6 +67,35 @@ const hasForbiddenSchemaKey = (value: unknown): boolean => {
   return Object.values(objectValue).some(hasForbiddenSchemaKey);
 };
 
+const withConnectedStreamableClient = async (
+  app: ReturnType<typeof createApp>,
+  run: (context: { client: Client; transport: StreamableHTTPClientTransport }) => Promise<void>,
+): Promise<void> => {
+  const httpServer = createServer(app);
+  await new Promise<void>((resolve) => httpServer.listen(0, resolve));
+  const { port } = httpServer.address() as AddressInfo;
+  const url = new URL(`http://127.0.0.1:${port}/mcp`);
+
+  const transport = new StreamableHTTPClientTransport(url, {
+    requestInit: {
+      headers: {
+        Authorization: 'Bearer test-token',
+      },
+    },
+  });
+  const client = new Client({ name: 'test-client', version: '1.0.0' }, { capabilities: {} });
+
+  await client
+    .connect(transport)
+    .then(async () => run({ client, transport }))
+    .finally(async () => {
+      await client.close();
+      await new Promise<void>((resolve, reject) =>
+        httpServer.close((error) => (error ? reject(error) : resolve())),
+      );
+    });
+};
+
 describe('MCP Server Integration', () => {
   let app: ReturnType<typeof createApp>;
 
@@ -168,125 +197,92 @@ describe('MCP Server Integration', () => {
   });
 
   it('Streamable client initializes successfully via /mcp', async () => {
-    const httpServer = createServer(app);
-    await new Promise<void>((resolve) => httpServer.listen(0, resolve));
-    const { port } = httpServer.address() as AddressInfo;
-    const url = new URL(`http://127.0.0.1:${port}/mcp`);
-
-    const transport = new StreamableHTTPClientTransport(url, {
-      requestInit: {
-        headers: {
-          Authorization: 'Bearer test-token',
-        },
-      },
+    await withConnectedStreamableClient(app, async ({ transport }) => {
+      expect(transport.sessionId).toBeTruthy();
     });
-    const client = new Client({ name: 'test-client', version: '1.0.0' }, { capabilities: {} });
-
-    await client.connect(transport);
-    expect(transport.sessionId).toBeTruthy();
-    await client.close();
-    await new Promise<void>((resolve, reject) =>
-      httpServer.close((error) => (error ? reject(error) : resolve())),
-    );
   });
 
   it('full MCP flow: streamable initialize → list tools', async () => {
-    const httpServer = createServer(app);
-    await new Promise<void>((resolve) => httpServer.listen(0, resolve));
-    const { port } = httpServer.address() as AddressInfo;
-    const url = new URL(`http://127.0.0.1:${port}/mcp`);
+    await withConnectedStreamableClient(app, async ({ client }) => {
+      const listResult = await client.listTools();
 
-    const transport = new StreamableHTTPClientTransport(url, {
-      requestInit: {
-        headers: {
-          Authorization: 'Bearer test-token',
-        },
-      },
-    });
-    const client = new Client({ name: 'test-client', version: '1.0.0' }, { capabilities: {} });
+      const expectedToolNames = [
+        'health',
+        'write_cards',
+        'lookup_card_by_id',
+        'lookup_categories',
+        'lookup_projects',
+        'lookup_tags',
+        'search_cards',
+      ];
 
-    await client.connect(transport);
+      const tools = listResult.tools;
+      expect(tools).toBeDefined();
+      expect(tools).toHaveLength(expectedToolNames.length);
 
-    const listResult = await client.listTools();
+      const toolNames = tools.map((tool) => String(tool.name)).sort();
+      expect(toolNames).toEqual([...expectedToolNames].sort());
 
-    const expectedToolNames = [
-      'health',
-      'write_cards',
-      'lookup_card_by_id',
-      'lookup_categories',
-      'lookup_projects',
-      'lookup_tags',
-      'search_cards',
-    ];
+      const writeTool = tools.find((tool) => tool.name === 'write_cards') as Record<
+        string,
+        unknown
+      >;
+      expect(writeTool).toBeDefined();
 
-    const tools = listResult.tools;
-    expect(tools).toBeDefined();
-    expect(tools).toHaveLength(expectedToolNames.length);
+      expect(writeTool.inputSchema).toBeDefined();
+      expect((writeTool.inputSchema as { type?: string }).type).toBe('object');
+      expect(
+        (writeTool.inputSchema as { properties?: Record<string, unknown> }).properties,
+      ).toBeDefined();
+      expect(
+        (writeTool.inputSchema as { properties?: Record<string, { type?: string }> }).properties
+          ?.cards,
+      ).toBeDefined();
+      expect(
+        (writeTool.inputSchema as { properties?: Record<string, { type?: string }> }).properties
+          ?.cards?.type,
+      ).toBe('array');
 
-    const toolNames = tools.map((tool) => String(tool.name)).sort();
-    expect(toolNames).toEqual([...expectedToolNames].sort());
-
-    const writeTool = tools.find((tool) => tool.name === 'write_cards') as Record<string, unknown>;
-    expect(writeTool).toBeDefined();
-
-    expect(writeTool.inputSchema).toBeDefined();
-    expect((writeTool.inputSchema as { type?: string }).type).toBe('object');
-    expect(
-      (writeTool.inputSchema as { properties?: Record<string, unknown> }).properties,
-    ).toBeDefined();
-    expect(
-      (writeTool.inputSchema as { properties?: Record<string, { type?: string }> }).properties
-        ?.cards,
-    ).toBeDefined();
-    expect(
-      (writeTool.inputSchema as { properties?: Record<string, { type?: string }> }).properties
-        ?.cards?.type,
-    ).toBe('array');
-
-    const writeCardsItems = (
-      (
-        writeTool.inputSchema as {
-          properties?: Record<string, { items?: { properties?: Record<string, unknown> } }>;
-        }
-      ).properties?.cards?.items as { properties?: Record<string, unknown> }
-    )?.properties;
-    const tagsSchema = writeCardsItems?.tags as
-      | {
-          properties?: Record<string, { type?: string }>;
-          required?: string[];
-        }
-      | undefined;
-    expect(tagsSchema).toBeDefined();
-    expect(tagsSchema?.properties?.lvl0?.type).toBe('array');
-    expect(tagsSchema?.properties?.lvl1?.type).toBe('array');
-    expect(tagsSchema?.required).toEqual(expect.arrayContaining(['lvl0', 'lvl1']));
-
-    for (const name of expectedToolNames) {
-      const tool = tools.find((candidate) => candidate.name === name) as
+      const writeCardsItems = (
+        (
+          writeTool.inputSchema as {
+            properties?: Record<string, { items?: { properties?: Record<string, unknown> } }>;
+          }
+        ).properties?.cards?.items as { properties?: Record<string, unknown> }
+      )?.properties;
+      const tagsSchema = writeCardsItems?.tags as
         | {
-            title?: string;
-            annotations?: {
-              readOnlyHint?: boolean;
-              destructiveHint?: boolean;
-              openWorldHint?: boolean;
-            };
-            _meta?: { ui?: { visibility?: string[] } };
+            properties?: Record<string, { type?: string }>;
+            required?: string[];
           }
         | undefined;
-      expect(tool).toBeDefined();
-      expect(tool?.title).toBeTruthy();
-      expect(tool?.annotations).toBeDefined();
-      expect(tool?.annotations?.readOnlyHint).not.toBeUndefined();
-      expect(tool?.annotations?.destructiveHint).not.toBeUndefined();
-      expect(tool?.annotations?.openWorldHint).not.toBeUndefined();
-      expect(tool?._meta?.ui?.visibility).toEqual(['model', 'app']);
-      expect(hasForbiddenSchemaKey((tool as { inputSchema?: unknown }).inputSchema)).toBe(false);
-    }
+      expect(tagsSchema).toBeDefined();
+      expect(tagsSchema?.properties?.lvl0?.type).toBe('array');
+      expect(tagsSchema?.properties?.lvl1?.type).toBe('array');
+      expect(tagsSchema?.required).toEqual(expect.arrayContaining(['lvl0', 'lvl1']));
 
-    await client.close();
-    await new Promise<void>((resolve, reject) =>
-      httpServer.close((error) => (error ? reject(error) : resolve())),
-    );
+      for (const name of expectedToolNames) {
+        const tool = tools.find((candidate) => candidate.name === name) as
+          | {
+              title?: string;
+              annotations?: {
+                readOnlyHint?: boolean;
+                destructiveHint?: boolean;
+                openWorldHint?: boolean;
+              };
+              _meta?: { ui?: { visibility?: string[] } };
+            }
+          | undefined;
+        expect(tool).toBeDefined();
+        expect(tool?.title).toBeTruthy();
+        expect(tool?.annotations).toBeDefined();
+        expect(tool?.annotations?.readOnlyHint).not.toBeUndefined();
+        expect(tool?.annotations?.destructiveHint).not.toBeUndefined();
+        expect(tool?.annotations?.openWorldHint).not.toBeUndefined();
+        expect(tool?._meta?.ui?.visibility).toEqual(['model', 'app']);
+        expect(hasForbiddenSchemaKey((tool as { inputSchema?: unknown }).inputSchema)).toBe(false);
+      }
+    });
   });
 
   it('POST /mcp returns 404 for unknown session header', async () => {
