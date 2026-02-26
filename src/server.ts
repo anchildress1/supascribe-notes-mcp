@@ -69,12 +69,15 @@ function sendToolResult(res: express.Response, result: CallToolResult): void {
 export function createApp(config: Config): express.Express {
   const supabase = createSupabaseClient(config.supabaseUrl, config.supabaseServiceRoleKey);
   const allowedCorsOrigins = new Set<string>();
+  const addAllowedOrigin = (origin: string, source: 'PUBLIC_URL' | 'CORS_ORIGINS'): void => {
+    try {
+      allowedCorsOrigins.add(new URL(origin).origin);
+    } catch {
+      logger.warn({ origin, source }, 'Ignoring invalid CORS origin');
+    }
+  };
 
-  try {
-    allowedCorsOrigins.add(new URL(config.publicUrl).origin);
-  } catch {
-    logger.warn({ publicUrl: config.publicUrl }, 'PUBLIC_URL is not a valid absolute URL');
-  }
+  addAllowedOrigin(config.publicUrl, 'PUBLIC_URL');
 
   const extraCorsOrigins = (process.env['CORS_ORIGINS'] ?? '')
     .split(',')
@@ -82,7 +85,7 @@ export function createApp(config: Config): express.Express {
     .filter((value) => value.length > 0);
 
   for (const origin of extraCorsOrigins) {
-    allowedCorsOrigins.add(origin);
+    addAllowedOrigin(origin, 'CORS_ORIGINS');
   }
 
   const app = express();
@@ -100,16 +103,24 @@ export function createApp(config: Config): express.Express {
   // Restrict CORS to explicit origins; allow requests without Origin header.
   const corsOptions: CorsOptions = {
     origin(origin, callback) {
-      if (!origin || allowedCorsOrigins.has(origin)) {
+      if (!origin) {
         callback(null, true);
         return;
       }
-      callback(new Error('Origin not allowed by CORS'));
+
+      try {
+        const normalizedOrigin = new URL(origin).origin;
+        callback(null, allowedCorsOrigins.has(normalizedOrigin));
+      } catch {
+        callback(null, false);
+      }
     },
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Authorization', 'Content-Type', 'Mcp-Session-Id', 'MCP-Protocol-Version'],
   };
 
+  app.locals.allowedCorsOrigins = allowedCorsOrigins;
+  app.locals.corsOptions = corsOptions;
   app.use(cors(corsOptions));
 
   app.use(express.json());

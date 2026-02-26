@@ -98,7 +98,7 @@ async function persistGenerationRun(
   generationRunCreated: boolean,
 ): Promise<void> {
   if (generationRunCreated) {
-    await supabase
+    const { error: updateError } = await supabase
       .from('generation_runs')
       .update({
         cards_written: resultsCount,
@@ -106,16 +106,32 @@ async function persistGenerationRun(
         error,
       })
       .eq('id', runId);
+
+    if (updateError) {
+      logger.error(
+        { runId, resultsCount, status, error, supabaseError: updateError },
+        'Failed to update generation run',
+      );
+      throw new Error(`Failed to update generation run: ${updateError.message}`);
+    }
     return;
   }
 
-  await supabase.from('generation_runs').insert({
+  const { error: insertError } = await supabase.from('generation_runs').insert({
     id: runId,
     tool_name: 'write_cards',
     cards_written: resultsCount,
     status,
     error,
   });
+
+  if (insertError) {
+    logger.error(
+      { runId, resultsCount, status, error, supabaseError: insertError },
+      'Failed to insert generation run',
+    );
+    throw new Error(`Failed to insert generation run: ${insertError.message}`);
+  }
 }
 
 async function writeSingleCard(
