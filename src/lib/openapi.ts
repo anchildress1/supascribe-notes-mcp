@@ -15,7 +15,7 @@ export function createOpenApiSpec(serverUrl: string, serverVersion = '1.0.0'): o
 
   // Helper to extract the actual schema definition from zod-to-json-schema output
   type JsonSchemaWithDefinitions = { definitions?: Record<string, unknown> };
-  const getDefinition = (jsonSchema: JsonSchemaWithDefinitions | unknown, name: string) => {
+  const getDefinition = (jsonSchema: unknown, name: string) => {
     return (jsonSchema as JsonSchemaWithDefinitions).definitions?.[name] || jsonSchema;
   };
 

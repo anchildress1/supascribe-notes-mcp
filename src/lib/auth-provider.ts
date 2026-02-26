@@ -4,7 +4,7 @@ import { logger } from './logger.js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export class SupabaseTokenVerifier implements OAuthTokenVerifier {
-  constructor(private supabase: SupabaseClient) {}
+  constructor(private readonly supabase: SupabaseClient) {}
 
   async verifyAccessToken(token: string): Promise<AuthInfo> {
     // Verify with Supabase
@@ -31,14 +31,14 @@ export class SupabaseTokenVerifier implements OAuthTokenVerifier {
     try {
       // Base64Url decode (replace - with +, _ with / and remove padding)
       const base64Url = token.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const base64 = base64Url.replaceAll('-', '+').replaceAll('_', '/');
       // Buffer.from handles missing padding for base64
       const payload = JSON.parse(Buffer.from(base64, 'base64').toString());
 
       if (typeof payload.exp === 'number' && Number.isFinite(payload.exp)) {
         expiresAt = payload.exp;
       } else {
-        throw new Error('Invalid exp claim');
+        throw new TypeError('Invalid exp claim');
       }
     } catch {
       // Fallback if token parsing fails (shouldn't happen for valid JWT)
