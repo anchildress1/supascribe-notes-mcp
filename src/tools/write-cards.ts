@@ -186,7 +186,7 @@ export async function handleWriteCards(
   const results: WriteResult[] = [];
   const errors: string[] = [];
   let generationRunCreated = false;
-  let generationRunIdForRevisions: string | null = runId;
+  let generationRunIdForRevisions: string | null = null;
   let hadUnexpectedError = false;
 
   try {
