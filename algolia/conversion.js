@@ -16,14 +16,21 @@ async function transform(record, _helper) {
       .filter((item) => item.length > 0);
   };
 
-  // Accept legacy input shapes, emit canonical dot-notation fields only.
-  const rawLvl0 =
-    record?.tags?.lvl0 ?? record?.tags?.['tags.lvl0'] ?? record['tags.lvl0'] ?? record.lvl0 ?? [];
-  const rawLvl1 =
-    record?.tags?.lvl1 ?? record?.tags?.['tags.lvl1'] ?? record['tags.lvl1'] ?? record.lvl1 ?? [];
+  const parseTags = (value) => {
+    if (value && typeof value === 'object' && !Array.isArray(value)) return value;
+    if (typeof value !== 'string') return {};
 
-  record['tags.lvl0'] = toStringArray(rawLvl0);
-  record['tags.lvl1'] = toStringArray(rawLvl1);
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
+  };
+
+  const tags = parseTags(record?.tags);
+  record['tags.lvl0'] = toStringArray(tags.lvl0);
+  record['tags.lvl1'] = toStringArray(tags.lvl1);
   delete record.tags;
   delete record.lvl0;
   delete record.lvl1;
