@@ -26,7 +26,7 @@ type CardRow = {
   title: string;
   blurb: string;
   fact: string;
-  url: string;
+  url: string | undefined;
   tags: CardInput['tags'];
   projects: CardInput['projects'];
   category: string;
