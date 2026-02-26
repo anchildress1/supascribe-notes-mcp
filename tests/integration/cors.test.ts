@@ -35,7 +35,7 @@ const resolveCorsOrigin = async (
 ): Promise<boolean> => {
   const originHandler = app.locals.corsOptions?.origin;
   if (typeof originHandler !== 'function') {
-    throw new Error('CORS origin handler is not available');
+    throw new TypeError('CORS origin handler is not available');
   }
 
   return new Promise<boolean>((resolve, reject) => {
