@@ -25,67 +25,79 @@ const mockCards = [
   },
 ];
 
+type MockCard = (typeof mockCards)[number];
+type TagFilter = {
+  lvl0?: string[];
+  lvl1?: string[];
+};
+
+const matchesTagFilter = (card: MockCard, filter: TagFilter): boolean => {
+  if (filter.lvl0) {
+    return filter.lvl0.some((tag: string) => card.tags.lvl0.includes(tag));
+  }
+  if (filter.lvl1) {
+    return filter.lvl1.some((tag: string) => card.tags.lvl1.includes(tag));
+  }
+  return false;
+};
+
+const createCardsQueryBuilder = () => {
+  let result = [...mockCards];
+  const queryPromise = Promise.resolve().then(() => ({ data: result, error: null }));
+  const queryBuilder = Object.assign(queryPromise, {
+    select: vi.fn().mockImplementation(() => queryBuilder),
+    eq: vi.fn().mockImplementation((col: string, val: string) => {
+      if (col === 'objectID') {
+        return {
+          maybeSingle: vi.fn().mockResolvedValue({
+            data: mockCards.find((card) => card.objectID === val) ?? null,
+            error: null,
+          }),
+        };
+      }
+      if (col === 'category') {
+        result = result.filter((card) => card.category === val);
+      }
+      return queryBuilder;
+    }),
+    in: vi.fn().mockImplementation((col: string, val: string[]) => {
+      if (col === 'objectID') {
+        result = result.filter((card) => val.includes(card.objectID));
+      }
+      return queryBuilder;
+    }),
+    ilike: vi.fn().mockImplementation((col: string, val: string) => {
+      const pattern = val.replaceAll('%', '').toLowerCase();
+      if (col === 'title') {
+        result = result.filter((card) => card.title.toLowerCase().includes(pattern));
+      }
+      if (col === 'category') {
+        result = result.filter((card) => card.category.toLowerCase().includes(pattern));
+      }
+      return queryBuilder;
+    }),
+    or: vi.fn().mockImplementation(() => queryBuilder),
+    contains: vi.fn().mockImplementation((col: string, val: string[] | TagFilter) => {
+      if (col === 'projects' && Array.isArray(val)) {
+        const [project] = val;
+        result = result.filter((card) => card.projects.includes(project));
+      }
+      if (col === 'tags' && !Array.isArray(val)) {
+        result = result.filter((card) => matchesTagFilter(card, val));
+      }
+      return queryBuilder;
+    }),
+    maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+  });
+
+  return queryBuilder;
+};
+
 vi.mock('../../src/lib/supabase.js', () => ({
   createSupabaseClient: vi.fn().mockReturnValue({
     from: vi.fn().mockImplementation((table: string) => {
       if (table === 'cards') {
-        let result = [...mockCards];
-        const queryBuilder = {
-          select: vi.fn().mockReturnThis(),
-          eq: vi.fn().mockImplementation((col, val) => {
-            if (col === 'objectID') {
-              return {
-                maybeSingle: vi.fn().mockResolvedValue({
-                  data: mockCards.find((c) => c.objectID === val) || null,
-                  error: null,
-                }),
-              };
-            }
-            if (col === 'category') {
-              result = result.filter((c) => c.category === val);
-            }
-            return queryBuilder;
-          }),
-          in: vi.fn().mockImplementation((col, val) => {
-            if (col === 'objectID') {
-              result = result.filter((c) => val.includes(c.objectID));
-            }
-            return queryBuilder;
-          }),
-          ilike: vi.fn().mockImplementation((col, val) => {
-            const pattern = val.replace(/%/g, '').toLowerCase();
-            if (col === 'title') {
-              result = result.filter((c) => c.title.toLowerCase().includes(pattern));
-            }
-            if (col === 'category') {
-              result = result.filter((c) => c.category.toLowerCase().includes(pattern));
-            }
-            return queryBuilder;
-          }),
-          or: vi.fn().mockReturnThis(),
-          contains: vi.fn().mockImplementation((col, val) => {
-            if (col === 'projects') {
-              const project = val[0];
-              result = result.filter((c) => c.projects.includes(project));
-            }
-            if (col === 'tags') {
-              result = result.filter((c) => {
-                if (val.lvl0) return val.lvl0.some((t: string) => c.tags.lvl0.includes(t));
-                if (val.lvl1) return val.lvl1.some((t: string) => c.tags.lvl1.includes(t));
-                return false;
-              });
-            }
-            return queryBuilder;
-          }),
-          maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-          then: vi.fn((resolve) =>
-            resolve({
-              data: result,
-              error: null,
-            }),
-          ),
-        };
-        return queryBuilder;
+        return createCardsQueryBuilder();
       }
 
       if (table === 'unique_categories') {

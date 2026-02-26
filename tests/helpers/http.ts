@@ -206,8 +206,15 @@ export const createMockResponse = (): MockResponseWithHelpers => {
           res.write(payload);
         } else if (typeof payload === 'object') {
           res.write(JSON.stringify(payload));
-        } else {
+        } else if (
+          typeof payload === 'string' ||
+          typeof payload === 'number' ||
+          typeof payload === 'boolean' ||
+          typeof payload === 'bigint'
+        ) {
           res.write(String(payload));
+        } else {
+          res.write(JSON.stringify(payload ?? null));
         }
       }
       res.end();
