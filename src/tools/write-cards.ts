@@ -10,6 +10,173 @@ interface WriteResult {
   status: 'created' | 'updated';
 }
 
+type GenerationRunState = {
+  generationRunCreated: boolean;
+  generationRunIdForRevisions: string | null;
+};
+
+type CardWriteOutcome = {
+  result?: WriteResult;
+  error?: string;
+  hadUnexpectedError?: boolean;
+};
+
+type CardRow = {
+  objectID: string;
+  title: string;
+  blurb: string;
+  fact: string;
+  url: string;
+  tags: CardInput['tags'];
+  projects: CardInput['projects'];
+  category: string;
+  signal: number;
+  created_at?: string;
+  updated_at: string;
+};
+
+function buildCardRow(card: CardInput, objectID: string): CardRow {
+  const createdAtInput = typeof card.created_at === 'string' ? card.created_at.trim() : undefined;
+  const createdAt = createdAtInput ? new Date(createdAtInput).toISOString() : undefined;
+  const now = new Date().toISOString();
+
+  return {
+    objectID,
+    title: card.title,
+    blurb: card.blurb,
+    fact: card.fact,
+    url: card.url,
+    tags: card.tags,
+    projects: card.projects,
+    category: card.category,
+    signal: card.signal,
+    ...(createdAt ? { created_at: createdAt } : {}),
+    updated_at: now,
+  };
+}
+
+async function createGenerationRun(
+  supabase: SupabaseClient,
+  runId: string,
+): Promise<GenerationRunState> {
+  try {
+    const { error: runError } = await supabase.from('generation_runs').insert({
+      id: runId,
+      tool_name: 'write_cards',
+      cards_written: 0,
+      status: 'partial',
+      error: null,
+    });
+
+    if (runError) {
+      logger.error({ runId, error: runError }, 'Failed to create generation run');
+      return {
+        generationRunCreated: false,
+        generationRunIdForRevisions: null,
+      };
+    }
+
+    return {
+      generationRunCreated: true,
+      generationRunIdForRevisions: runId,
+    };
+  } catch (error) {
+    logger.error({ runId, error }, 'Unexpected error creating generation run');
+    return {
+      generationRunCreated: false,
+      generationRunIdForRevisions: null,
+    };
+  }
+}
+
+async function persistGenerationRun(
+  supabase: SupabaseClient,
+  runId: string,
+  resultsCount: number,
+  status: 'success' | 'partial' | 'error',
+  error: string | null,
+  generationRunCreated: boolean,
+): Promise<void> {
+  if (generationRunCreated) {
+    await supabase
+      .from('generation_runs')
+      .update({
+        cards_written: resultsCount,
+        status,
+        error,
+      })
+      .eq('id', runId);
+    return;
+  }
+
+  await supabase.from('generation_runs').insert({
+    id: runId,
+    tool_name: 'write_cards',
+    cards_written: resultsCount,
+    status,
+    error,
+  });
+}
+
+async function writeSingleCard(
+  supabase: SupabaseClient,
+  runId: string,
+  card: CardInput,
+  generationRunIdForRevisions: string | null,
+): Promise<CardWriteOutcome> {
+  try {
+    const objectID = card.objectID ?? randomUUID();
+    const row = buildCardRow(card, objectID);
+
+    const { data: existing } = await supabase
+      .from('cards')
+      .select('"objectID"')
+      .eq('objectID', objectID)
+      .maybeSingle();
+    const isUpdate = Boolean(existing);
+
+    const { error: upsertError } = await supabase
+      .from('cards')
+      .upsert(row, { onConflict: 'objectID' });
+    if (upsertError) {
+      const message = `Card "${card.title}": ${upsertError.message}`;
+      logger.error({ runId, card: card.title, error: upsertError }, 'Failed to upsert card');
+      return { error: message };
+    }
+
+    const { error: revisionError } = await supabase.from('card_revisions').insert({
+      card_id: objectID,
+      revision_data: row,
+      generation_run_id: generationRunIdForRevisions,
+    });
+    if (revisionError) {
+      return {
+        result: {
+          objectID,
+          title: card.title,
+          status: isUpdate ? 'updated' : 'created',
+        },
+        error: `Revision for "${card.title}": ${revisionError.message}`,
+      };
+    }
+
+    return {
+      result: {
+        objectID,
+        title: card.title,
+        status: isUpdate ? 'updated' : 'created',
+      },
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    logger.error({ runId, card: card.title, error }, 'Unexpected error processing card');
+    return {
+      error: `Card "${card.title}": ${message}`,
+      hadUnexpectedError: true,
+    };
+  }
+}
+
 export async function handleWriteCards(
   supabase: SupabaseClient,
   cards: CardInput[],
@@ -23,119 +190,37 @@ export async function handleWriteCards(
   let hadUnexpectedError = false;
 
   try {
-    // Create the generation run up-front so revisions can reference it (FK constraint).
-    try {
-      const { error: runError } = await supabase.from('generation_runs').insert({
-        id: runId,
-        tool_name: 'write_cards',
-        cards_written: 0,
-        status: 'partial',
-        error: null,
-      });
-
-      if (runError) {
-        generationRunIdForRevisions = null;
-        logger.error({ runId, error: runError }, 'Failed to create generation run');
-      } else {
-        generationRunCreated = true;
-      }
-    } catch (err) {
-      generationRunIdForRevisions = null;
-      logger.error({ runId, error: err }, 'Unexpected error creating generation run');
-    }
+    const generationRunState = await createGenerationRun(supabase, runId);
+    generationRunCreated = generationRunState.generationRunCreated;
+    generationRunIdForRevisions = generationRunState.generationRunIdForRevisions;
 
     for (const card of cards) {
-      try {
-        const objectID = card.objectID ?? randomUUID();
-        const now = new Date().toISOString();
-        const createdAtInput =
-          typeof card.created_at === 'string' ? card.created_at.trim() : undefined;
-        const createdAt = createdAtInput ? new Date(createdAtInput).toISOString() : undefined;
-
-        const row = {
-          objectID,
-          title: card.title,
-          blurb: card.blurb,
-          fact: card.fact,
-          url: card.url,
-          tags: card.tags,
-          projects: card.projects,
-          category: card.category,
-          signal: card.signal,
-          ...(createdAt ? { created_at: createdAt } : {}),
-          updated_at: now,
-        };
-
-        // Check if card exists to determine created vs updated
-        const { data: existing } = await supabase
-          .from('cards')
-          .select('"objectID"')
-          .eq('objectID', objectID)
-          .maybeSingle();
-
-        const isUpdate = !!existing;
-
-        // Upsert card
-        const { error: upsertError } = await supabase
-          .from('cards')
-          .upsert(row, { onConflict: 'objectID' });
-
-        if (upsertError) {
-          const msg = `Card "${card.title}": ${upsertError.message}`;
-          logger.error({ runId, card: card.title, error: upsertError }, 'Failed to upsert card');
-          errors.push(msg);
-          continue;
-        }
-
-        // Insert revision
-        const { error: revisionError } = await supabase.from('card_revisions').insert({
-          card_id: objectID,
-          revision_data: row,
-          generation_run_id: generationRunIdForRevisions,
-        });
-
-        if (revisionError) {
-          errors.push(`Revision for "${card.title}": ${revisionError.message}`);
-        }
-
-        results.push({
-          objectID,
-          title: card.title,
-          status: isUpdate ? 'updated' : 'created',
-        });
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Unknown error';
+      const outcome = await writeSingleCard(supabase, runId, card, generationRunIdForRevisions);
+      if (outcome.result) {
+        results.push(outcome.result);
+      }
+      if (outcome.error) {
+        errors.push(outcome.error);
+      }
+      if (outcome.hadUnexpectedError) {
         hadUnexpectedError = true;
-        logger.error({ runId, card: card.title, error: err }, 'Unexpected error processing card');
-        errors.push(`Card "${card.title}": ${message}`);
       }
     }
 
-    // Finalize generation run (best-effort).
     const finalStatus = errors.length > 0 ? 'partial' : 'success';
     const finalError = errors.length > 0 ? errors.join('; ') : null;
 
     try {
-      if (generationRunCreated) {
-        await supabase
-          .from('generation_runs')
-          .update({
-            cards_written: results.length,
-            status: finalStatus,
-            error: finalError,
-          })
-          .eq('id', runId);
-      } else {
-        await supabase.from('generation_runs').insert({
-          id: runId,
-          tool_name: 'write_cards',
-          cards_written: results.length,
-          status: finalStatus,
-          error: finalError,
-        });
-      }
-    } catch (err) {
-      logger.error({ runId, error: err }, 'Failed to finalize generation run');
+      await persistGenerationRun(
+        supabase,
+        runId,
+        results.length,
+        finalStatus,
+        finalError,
+        generationRunCreated,
+      );
+    } catch (error) {
+      logger.error({ runId, error }, 'Failed to finalize generation run');
     }
 
     return {
@@ -153,29 +238,19 @@ export async function handleWriteCards(
       ],
       isError: results.length === 0 && hadUnexpectedError,
     };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Unknown error';
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
 
     // Attempt to log failed run
     try {
-      if (generationRunCreated) {
-        await supabase
-          .from('generation_runs')
-          .update({
-            cards_written: results.length,
-            status: 'error',
-            error: message,
-          })
-          .eq('id', runId);
-      } else {
-        await supabase.from('generation_runs').insert({
-          id: runId,
-          tool_name: 'write_cards',
-          cards_written: results.length,
-          status: 'error',
-          error: message,
-        });
-      }
+      await persistGenerationRun(
+        supabase,
+        runId,
+        results.length,
+        'error',
+        message,
+        generationRunCreated,
+      );
     } catch {
       // Swallow logging failure
     }
