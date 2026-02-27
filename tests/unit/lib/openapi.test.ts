@@ -36,6 +36,7 @@ describe('createOpenApiSpec', () => {
     expect(spec.components.schemas.CardInput).toBeDefined();
     expect(spec.components.schemas.Card).toBeDefined();
     expect(spec.components.schemas.CardInput.properties.title.description).toBeDefined();
+    expect(spec.components.schemas.CardInput.properties.deleted_at).toBeDefined();
     expect(spec.components.schemas.CardInput.properties.tags.properties.lvl0.type).toBe('array');
     expect(spec.components.schemas.CardInput.properties.tags.properties.lvl1.type).toBe('array');
     expect(spec.components.schemas.CardInput.properties.tags.required).toEqual(

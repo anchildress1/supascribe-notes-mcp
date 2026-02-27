@@ -264,6 +264,7 @@ describe('MCP Server Integration', () => {
       expect(tagsSchema?.properties?.lvl0?.type).toBe('array');
       expect(tagsSchema?.properties?.lvl1?.type).toBe('array');
       expect(tagsSchema?.required).toEqual(expect.arrayContaining(['lvl0', 'lvl1']));
+      expect((writeCardsItems?.deleted_at as { type?: string })?.type).toBe('string');
 
       for (const name of expectedToolNames) {
         const tool = tools.find((candidate) => candidate.name === name) as

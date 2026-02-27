@@ -38,6 +38,7 @@ type CardRow = {
   category: string;
   signal: number;
   created_at?: string;
+  deleted_at?: string;
   updated_at: string;
   deleted_at?: string;
 };
@@ -60,6 +61,7 @@ function buildCardRow(card: CardInput, objectID: string): CardRow {
     category: card.category,
     signal: card.signal,
     ...(createdAt ? { created_at: createdAt } : {}),
+    ...(deletedAt ? { deleted_at: deletedAt } : {}),
     updated_at: now,
     ...(deletedAt ? { deleted_at: deletedAt } : {}),
   };
