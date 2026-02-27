@@ -26,3 +26,9 @@ Non-goals:
 ## Quality Red Lines
 
 - Code duplication and Sonar issues of any kind are prohibited for this repository unless the user explicitly overrides this policy in the current request.
+
+## PR Review Behavior
+
+- PR reviews are expected to run automatically.
+- Do not manually request reviews (for example `@copilot review` or adding review bots) unless the user explicitly asks.
+- After opening a PR, wait for automatic review feedback and then address all actionable comments.
