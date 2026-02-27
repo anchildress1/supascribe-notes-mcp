@@ -17,7 +17,7 @@ type QueryMock = {
   or: ReturnType<typeof vi.fn>;
   contains: ReturnType<typeof vi.fn>;
   maybeSingle: ReturnType<typeof vi.fn>;
-  then: ReturnType<typeof vi.fn>;
+  setResult: (value: unknown) => void;
 };
 
 const asTextJson = <T>(result: { content: Array<{ type: string; text: string }> }): T => {
@@ -25,24 +25,63 @@ const asTextJson = <T>(result: { content: Array<{ type: string; text: string }> 
   return JSON.parse(text) as T;
 };
 
-const createQueryMock = (initialValue: unknown): QueryMock => ({
-  from: vi.fn().mockReturnThis(),
-  select: vi.fn().mockReturnThis(),
-  eq: vi.fn().mockReturnThis(),
-  in: vi.fn().mockReturnThis(),
-  ilike: vi.fn().mockReturnThis(),
-  or: vi.fn().mockReturnThis(),
-  contains: vi.fn().mockReturnThis(),
-  maybeSingle: vi.fn().mockResolvedValue(initialValue),
-  then: vi.fn().mockImplementation((onfulfilled: (value: unknown) => unknown) => {
-    return Promise.resolve(initialValue).then(onfulfilled);
-  }),
-});
+const createQueryMock = (initialValue: unknown): QueryMock => {
+  let result = initialValue;
+  const from = vi.fn();
+  const select = vi.fn();
+  const eq = vi.fn();
+  const inFn = vi.fn();
+  const ilike = vi.fn();
+  const or = vi.fn();
+  const contains = vi.fn();
+  const maybeSingle = vi.fn().mockImplementation(async () => result);
+
+  type ThenableQuery = Promise<unknown> & {
+    select: ReturnType<typeof vi.fn>;
+    eq: ReturnType<typeof vi.fn>;
+    in: ReturnType<typeof vi.fn>;
+    ilike: ReturnType<typeof vi.fn>;
+    or: ReturnType<typeof vi.fn>;
+    contains: ReturnType<typeof vi.fn>;
+    maybeSingle: ReturnType<typeof vi.fn>;
+  };
+
+  let query: ThenableQuery;
+  const makeQuery = (): ThenableQuery => {
+    query = Object.assign(
+      Promise.resolve().then(() => result),
+      {
+        select: select.mockImplementation(() => query),
+        eq: eq.mockImplementation(() => query),
+        in: inFn.mockImplementation(() => query),
+        ilike: ilike.mockImplementation(() => query),
+        or: or.mockImplementation(() => query),
+        contains: contains.mockImplementation(() => query),
+        maybeSingle,
+      },
+    );
+    return query;
+  };
+
+  from.mockImplementation(() => makeQuery());
+
+  return {
+    from,
+    select,
+    eq,
+    in: inFn,
+    ilike,
+    or,
+    contains,
+    maybeSingle,
+    setResult(value: unknown) {
+      result = value;
+    },
+  };
+};
 
 const setQueryResult = (supabase: QueryMock, value: unknown) => {
-  supabase.then.mockImplementation((onfulfilled: (result: unknown) => unknown) =>
-    Promise.resolve(value).then(onfulfilled),
-  );
+  supabase.setResult(value);
 };
 
 const setTagResults = (

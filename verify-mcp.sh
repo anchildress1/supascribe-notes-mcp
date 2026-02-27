@@ -2,7 +2,7 @@
 
 # verify-mcp.sh - Verify Streamable HTTP MCP flow on /mcp
 
-if [ -z "$1" ]; then
+if [[ -z "$1" ]]; then
   echo "Usage: ./verify-mcp.sh <SUPABASE_ACCESS_TOKEN>"
   echo ""
   echo "  Example:"
@@ -30,7 +30,7 @@ INIT_RESPONSE=$(curl -sS -i -X POST \
 
 SESSION_ID=$(printf '%s\n' "$INIT_RESPONSE" | awk -F': ' 'tolower($1)=="mcp-session-id" {gsub("\r","",$2); print $2; exit}')
 
-if [ -z "$SESSION_ID" ]; then
+if [[ -z "$SESSION_ID" ]]; then
   echo "Failed to initialize MCP session. Full response:"
   echo "$INIT_RESPONSE"
   exit 1

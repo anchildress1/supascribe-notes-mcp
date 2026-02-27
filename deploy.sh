@@ -3,34 +3,34 @@ set -e
 
 # Configuration
 SERVICE_NAME="supascribe-notes"
-
+DIVIDER="=================================================="
 REGION="us-east1"
 PORT="8080"
 
 # Check dependencies
 if ! command -v gcloud &> /dev/null; then
-    echo "Error: gcloud CLI is not installed."
+    echo "Error: gcloud CLI is not installed." >&2
     exit 1
 fi
 
 PROJECT_ID=$(gcloud config get-value project 2>/dev/null)
-if [ "$PROJECT_ID" == "(unset)" ] || [ -z "$PROJECT_ID" ]; then
-    echo "Error: No Google Cloud Project ID set. Run: gcloud config set project <PROJECT_ID>"
+if [[ "$PROJECT_ID" == "(unset)" ]] || [[ -z "$PROJECT_ID" ]]; then
+    echo "Error: No Google Cloud Project ID set. Run: gcloud config set project <PROJECT_ID>" >&2
     exit 1
 fi
 
 PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')
 
-echo "=================================================="
+echo "$DIVIDER"
 echo "DEPLOYMENT: $SERVICE_NAME"
-echo "=================================================="
+echo "$DIVIDER"
 echo "Project: $PROJECT_ID ($PROJECT_NUMBER)"
 echo "Region:  $REGION"
-echo "=================================================="
+echo "$DIVIDER"
 
 # Load environment variables
 for env_file in ".env" ".env.local"; do
-    if [ -f "$env_file" ]; then
+    if [[ -f "$env_file" ]]; then
         set -a
         # shellcheck disable=SC1090
         . "$env_file"
@@ -40,10 +40,11 @@ done
 
 require_env() {
     local name=$1
-    if [ -z "${!name}" ]; then
-        echo "Error: Required env var '$name' is missing or empty."
+    if [[ -z "${!name}" ]]; then
+        echo "Error: Required env var '$name' is missing or empty." >&2
         exit 1
     fi
+    return 0
 }
 
 require_env "SUPABASE_URL"
@@ -52,7 +53,7 @@ require_env "SUPABASE_ANON_KEY"
 
 # SERVER_VERSION is used to bust client caches (e.g., ChatGPT tool metadata).
 # If not explicitly set, default to the current git commit SHA.
-if [ -n "$SERVER_VERSION" ]; then
+if [[ -n "$SERVER_VERSION" ]]; then
     SERVER_VERSION_VALUE="$SERVER_VERSION"
 elif command -v git &> /dev/null && git rev-parse --is-inside-work-tree &> /dev/null; then
     SERVER_VERSION_VALUE="$(git rev-parse --short HEAD)"
@@ -89,10 +90,10 @@ gcloud beta builds submit --tag "$IMAGE_URI" . --project "$PROJECT_ID"
 EXISTING_URL=$(gcloud run services describe "$SERVICE_NAME" \
     --region "$REGION" --project "$PROJECT_ID" --format 'value(status.url)' 2>/dev/null || true)
 
-if [ -n "$PUBLIC_URL" ]; then
+if [[ -n "$PUBLIC_URL" ]]; then
     echo "Using configured PUBLIC_URL: $PUBLIC_URL"
     ENV_VARS="SUPABASE_URL=$SUPABASE_URL,SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY,SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY,PUBLIC_URL=$PUBLIC_URL,SERVER_VERSION=$SERVER_VERSION_VALUE"
-elif [ -n "$EXISTING_URL" ]; then
+elif [[ -n "$EXISTING_URL" ]]; then
     echo "Found existing service URL: $EXISTING_URL"
     ENV_VARS="SUPABASE_URL=$SUPABASE_URL,SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY,SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY,PUBLIC_URL=$EXISTING_URL,SERVER_VERSION=$SERVER_VERSION_VALUE"
 else
@@ -112,7 +113,7 @@ gcloud run deploy "$SERVICE_NAME" \
     --set-env-vars "$ENV_VARS"
 
 # If it was a first deploy (or URL changed, unlikely), and we didn't set PUBLIC_URL, update it now
-if [ -z "$EXISTING_URL" ] && [ -z "$PUBLIC_URL" ]; then
+if [[ -z "$EXISTING_URL" && -z "$PUBLIC_URL" ]]; then
     NEW_URL=$(gcloud run services describe "$SERVICE_NAME" \
         --region "$REGION" --project "$PROJECT_ID" --format 'value(status.url)')
     
@@ -127,11 +128,11 @@ SERVICE_URL=$(gcloud run services describe "$SERVICE_NAME" \
     --region "$REGION" --project "$PROJECT_ID" --format 'value(status.url)')
 
 echo ""
-echo "=================================================="
+echo "$DIVIDER"
 echo "DEPLOYMENT COMPLETE"
-echo "=================================================="
+echo "$DIVIDER"
 echo "Service URL: $SERVICE_URL"
 echo ""
 echo "Smoke test:"
 echo "  curl $SERVICE_URL/status"
-echo "=================================================="
+echo "$DIVIDER"

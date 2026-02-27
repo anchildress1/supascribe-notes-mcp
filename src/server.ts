@@ -33,6 +33,7 @@ import { ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import type { AnySchema, ZodRawShapeCompat } from '@modelcontextprotocol/sdk/server/zod-compat.js';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { randomUUID } from 'node:crypto';
+import type { CorsOptions } from 'cors';
 
 export function stripJsonSchemaKeywords(value: unknown): unknown {
   if (!value || typeof value !== 'object') return value;
@@ -67,6 +68,25 @@ function sendToolResult(res: express.Response, result: CallToolResult): void {
 
 export function createApp(config: Config): express.Express {
   const supabase = createSupabaseClient(config.supabaseUrl, config.supabaseServiceRoleKey);
+  const allowedCorsOrigins = new Set<string>();
+  const addAllowedOrigin = (origin: string, source: 'PUBLIC_URL' | 'CORS_ORIGINS'): void => {
+    try {
+      allowedCorsOrigins.add(new URL(origin).origin);
+    } catch {
+      logger.warn({ origin, source }, 'Ignoring invalid CORS origin');
+    }
+  };
+
+  addAllowedOrigin(config.publicUrl, 'PUBLIC_URL');
+
+  const extraCorsOrigins = (process.env['CORS_ORIGINS'] ?? '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
+
+  for (const origin of extraCorsOrigins) {
+    addAllowedOrigin(origin, 'CORS_ORIGINS');
+  }
 
   const app = express();
   app.set('trust proxy', 1);
@@ -80,8 +100,28 @@ export function createApp(config: Config): express.Express {
     });
   });
 
-  // Enable CORS
-  app.use(cors());
+  // Restrict CORS to explicit origins; allow requests without Origin header.
+  const corsOptions: CorsOptions = {
+    origin(origin, callback) {
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+
+      try {
+        const normalizedOrigin = new URL(origin).origin;
+        callback(null, allowedCorsOrigins.has(normalizedOrigin));
+      } catch {
+        callback(null, false);
+      }
+    },
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Authorization', 'Content-Type', 'Mcp-Session-Id', 'MCP-Protocol-Version'],
+  };
+
+  app.locals.allowedCorsOrigins = allowedCorsOrigins;
+  app.locals.corsOptions = corsOptions;
+  app.use(cors(corsOptions));
 
   app.use(express.json());
 

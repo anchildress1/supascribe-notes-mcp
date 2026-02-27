@@ -12,9 +12,9 @@ export function loadConfig(): Config {
   const supabaseServiceRoleKey = requireEnv('SUPABASE_SERVICE_ROLE_KEY');
   // Required for client-side Auth UI
   const supabaseAnonKey = requireEnv('SUPABASE_ANON_KEY');
-  const port = parseInt(process.env['PORT'] ?? '8080', 10);
+  const port = Number.parseInt(process.env['PORT'] ?? '8080', 10);
 
-  if (isNaN(port) || port < 0 || port > 65535) {
+  if (Number.isNaN(port) || port < 0 || port > 65535) {
     throw new Error('PORT must be a valid port number (0–65535)');
   }
 

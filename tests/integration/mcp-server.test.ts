@@ -220,8 +220,12 @@ describe('MCP Server Integration', () => {
       expect(tools).toBeDefined();
       expect(tools).toHaveLength(expectedToolNames.length);
 
-      const toolNames = tools.map((tool) => String(tool.name)).sort();
-      expect(toolNames).toEqual([...expectedToolNames].sort());
+      const toolNames = tools
+        .map((tool) => String(tool.name))
+        .sort((left, right) => left.localeCompare(right));
+      expect(toolNames).toEqual(
+        [...expectedToolNames].sort((left, right) => left.localeCompare(right)),
+      );
 
       const writeTool = tools.find((tool) => tool.name === 'write_cards') as Record<
         string,

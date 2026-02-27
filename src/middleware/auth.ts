@@ -15,14 +15,18 @@ export function createAuthMiddleware(authVerifier: SupabaseTokenVerifier, public
   return async (req: Request, res: Response, next: NextFunction) => {
     const authHeader = req.headers.authorization;
     let token: string | undefined;
+    const bearerPrefix = 'bearer ';
 
     // 1. Try Authorization header (case-insensitive)
-    const match = authHeader?.match(/^Bearer\s+(.+)$/i);
-    if (match) {
-      token = match[1];
-    } else if (authHeader) {
+    const normalizedAuthHeader = authHeader?.trim();
+    if (normalizedAuthHeader?.toLowerCase().startsWith(bearerPrefix)) {
+      const extractedToken = normalizedAuthHeader.slice(bearerPrefix.length).trim();
+      if (extractedToken.length > 0) {
+        token = extractedToken;
+      }
+    } else if (normalizedAuthHeader) {
       logger.warn(
-        { authHeader: authHeader.substring(0, 10) + '...' },
+        { authHeader: normalizedAuthHeader.substring(0, 10) + '...' },
         'Authorization header present but invalid format',
       );
     }

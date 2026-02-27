@@ -1,5 +1,6 @@
 import { EventSource } from 'eventsource';
-global.EventSource = EventSource;
+import { randomUUID } from 'node:crypto';
+globalThis.EventSource = EventSource;
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
@@ -64,7 +65,7 @@ async function main() {
 
   // Auth logic - create a temp user
   const email = `mcp-test-${Date.now()}@example.com`;
-  const password = 'TestPassword123!';
+  const password = process.env.MCP_TEST_PASSWORD ?? `Mcp!${randomUUID()}A1`;
 
   let { data, error } = await supabase.auth.signUp({ email, password });
 
@@ -148,4 +149,9 @@ async function main() {
   client.close();
 }
 
-main().catch(console.error);
+try {
+  await main();
+} catch (error) {
+  console.error(error);
+  process.exitCode = 1;
+}
