@@ -21,6 +21,12 @@ type CardWriteOutcome = {
   hadUnexpectedError?: boolean;
 };
 
+type BatchWriteOutcome = {
+  results: WriteResult[];
+  errors: string[];
+  hadUnexpectedError: boolean;
+};
+
 type CardRow = {
   objectID: string;
   title: string;
@@ -193,35 +199,54 @@ async function writeSingleCard(
   }
 }
 
+async function writeCardsBatch(
+  supabase: SupabaseClient,
+  runId: string,
+  cards: CardInput[],
+  generationRunIdForRevisions: string | null,
+): Promise<BatchWriteOutcome> {
+  const results: WriteResult[] = [];
+  const errors: string[] = [];
+  let hadUnexpectedError = false;
+
+  for (const card of cards) {
+    const outcome = await writeSingleCard(supabase, runId, card, generationRunIdForRevisions);
+    if (outcome.result) {
+      results.push(outcome.result);
+    }
+    if (outcome.error) {
+      errors.push(outcome.error);
+    }
+    if (outcome.hadUnexpectedError) {
+      hadUnexpectedError = true;
+    }
+  }
+
+  return { results, errors, hadUnexpectedError };
+}
+
 export async function handleWriteCards(
   supabase: SupabaseClient,
   cards: CardInput[],
 ): Promise<CallToolResult> {
   const runId = randomUUID();
   logger.info({ runId, cardCount: cards.length }, 'Starting write_cards execution');
-  const results: WriteResult[] = [];
-  const errors: string[] = [];
   let generationRunCreated = false;
   let generationRunIdForRevisions: string | null = null;
-  let hadUnexpectedError = false;
+  let writtenCount = 0;
 
   try {
     const generationRunState = await createGenerationRun(supabase, runId);
     generationRunCreated = generationRunState.generationRunCreated;
     generationRunIdForRevisions = generationRunState.generationRunIdForRevisions;
 
-    for (const card of cards) {
-      const outcome = await writeSingleCard(supabase, runId, card, generationRunIdForRevisions);
-      if (outcome.result) {
-        results.push(outcome.result);
-      }
-      if (outcome.error) {
-        errors.push(outcome.error);
-      }
-      if (outcome.hadUnexpectedError) {
-        hadUnexpectedError = true;
-      }
-    }
+    const { results, errors, hadUnexpectedError } = await writeCardsBatch(
+      supabase,
+      runId,
+      cards,
+      generationRunIdForRevisions,
+    );
+    writtenCount = results.length;
 
     const finalStatus = errors.length > 0 ? 'partial' : 'success';
     const finalError = errors.length > 0 ? errors.join('; ') : null;
@@ -262,7 +287,7 @@ export async function handleWriteCards(
       await persistGenerationRun(
         supabase,
         runId,
-        results.length,
+        writtenCount,
         'error',
         message,
         generationRunCreated,
@@ -278,7 +303,7 @@ export async function handleWriteCards(
           text: JSON.stringify({
             run_id: runId,
             error: message,
-            written: results.length,
+            written: writtenCount,
           }),
         },
       ],
