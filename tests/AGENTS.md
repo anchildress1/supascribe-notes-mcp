@@ -9,9 +9,15 @@ before writing or modifying any test.
 ## Stack
 
 - **Framework:** Vitest v3 (`npm test`)
-- **Coverage provider:** V8, thresholds at **85%** lines / functions / branches / statements
-- **Config:** `vitest.config.ts` — never modify thresholds without explicit user direction
-- **Coverage excluded:** `src/index.ts` only
+- **Coverage provider:** V8, thresholds at **85%** lines / functions / branches / statements (per file)
+- **Config:** `vitest.config.ts` — never modify thresholds or the include list without explicit user direction
+- **Coverage scope:** explicit `coverage.include` allowlist — only these files are measured:
+  - `src/config.ts`
+  - `src/lib/auth-provider.ts`
+  - `src/middleware/auth.ts`
+  - `src/schemas/card.ts`
+  - `src/tools/lookup-tools.ts`
+  - `src/tools/write-cards.ts`
 
 ---
 
