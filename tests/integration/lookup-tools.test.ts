@@ -78,7 +78,7 @@ const createCardsQueryBuilder = () => {
       }
       return queryBuilder;
     }),
-    is: vi.fn().mockImplementation((col: string, val: null | unknown) => {
+    is: vi.fn().mockImplementation((col: string, val: unknown) => {
       if (col === 'deleted_at' && val === null) {
         result = result.filter((card) => card.deleted_at == null);
       }
