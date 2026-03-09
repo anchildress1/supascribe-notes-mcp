@@ -124,6 +124,26 @@ describe('CardInputSchema', () => {
       CardInputSchema.parse({ ...validCard, created_at: 123 as unknown as string }),
     ).toThrow();
   });
+
+  it('accepts deleted_at when provided', () => {
+    const deleted_at = '2024-06-01T12:00:00Z';
+    const result = CardInputSchema.parse({ ...validCard, deleted_at: `  ${deleted_at}  ` });
+    expect(result.deleted_at).toBe(deleted_at);
+  });
+
+  it('omits deleted_at when not provided', () => {
+    const result = CardInputSchema.parse(validCard);
+    expect(result.deleted_at).toBeUndefined();
+  });
+
+  it('normalizes blank deleted_at to undefined', () => {
+    const result = CardInputSchema.parse({ ...validCard, deleted_at: '   ' });
+    expect(result.deleted_at).toBeUndefined();
+  });
+
+  it('rejects invalid deleted_at string', () => {
+    expect(() => CardInputSchema.parse({ ...validCard, deleted_at: 'not-a-date' })).toThrow();
+  });
 });
 
 describe('WriteCardsInputSchema', () => {

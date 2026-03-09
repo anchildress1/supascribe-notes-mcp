@@ -80,6 +80,26 @@ export const CardInputSchema = z.object({
     .describe(
       'Optional historical creation timestamp. If provided, it will be normalized to ISO-8601 UTC before upsert.',
     ),
+  deleted_at: z
+    .preprocess(
+      (value) => {
+        if (value === null || value === undefined) return undefined;
+        if (typeof value === 'string') {
+          const trimmed = value.trim();
+          return trimmed.length === 0 ? undefined : trimmed;
+        }
+        return value;
+      },
+      z
+        .string()
+        .refine((value) => !Number.isNaN(Date.parse(value)), {
+          message: 'deleted_at must be a valid datetime string',
+        })
+        .optional(),
+    )
+    .describe(
+      'Optional soft-delete timestamp. If provided, the card is marked as deleted at that time. Omit to leave deletion status unchanged.',
+    ),
 });
 
 export const WriteCardsInputSchema = z.object({
