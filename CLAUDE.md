@@ -4,16 +4,34 @@
 
 Before making any change to this repo, read **`AGENTS.md`** in the project root. It contains durable context about what "Apps SDK" means here, MCP tool shape requirements, and other decisions that affect every part of the codebase.
 
-## When Working on Tests
+## Context Files by Directory
 
-When writing, modifying, or reviewing anything under `tests/`, also read **`tests/AGENTS.md`**. It defines:
+Each subdirectory that has specialized conventions carries its own `AGENTS.md`. Load the
+relevant one in addition to the root `AGENTS.md` whenever you work in that area.
 
-- The exact mock patterns for this codebase (harness factory, chainable query builder, module mock)
-- Directory layout and which test type belongs where
-- Integration test boilerplate and the three-case auth pattern
-- Vitest-specific rules (restoreAllMocks, stubEnv, it.each usage)
+| Directory   | AGENTS.md                                  | When to read                                          |
+| ----------- | ------------------------------------------ | ----------------------------------------------------- |
+| `tests/`    | [`tests/AGENTS.md`](tests/AGENTS.md)       | Writing, modifying, or reviewing any test file        |
+| `supabase/` | [`supabase/AGENTS.md`](supabase/AGENTS.md) | Writing migrations, checking schema, applying changes |
+| `docs/`     | [`docs/AGENTS.md`](docs/AGENTS.md)         | Adding or updating documentation                      |
 
-The global `test-writer` skill provides universal testing principles (full-path coverage, no `.skip`, no threshold changes). `tests/AGENTS.md` layers the repo-specific implementation on top of those principles. Both apply simultaneously.
+### tests/AGENTS.md
+
+Defines the exact mock patterns for this codebase (harness factory, chainable query builder,
+module mock), directory layout, integration test boilerplate, and Vitest-specific rules.
+The global `test-writer` skill provides universal principles; `tests/AGENTS.md` layers
+the repo-specific implementation on top. Both apply simultaneously.
+
+### supabase/AGENTS.md
+
+Defines migration naming, the **apply-immediately** rule (every migration must be applied
+via `mcp__plugin_supabase_supabase__apply_migration` right after commit), security
+conventions (RLS, grants), and schema conventions (timestamptz, soft delete, JSONB guards).
+
+### docs/AGENTS.md
+
+Defines what lives in `docs/`, which doc to update for each type of code change, and
+writing style rules.
 
 ## Key Facts
 
