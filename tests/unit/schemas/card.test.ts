@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   CardInputSchema,
+  CardIdInputSchema,
   WriteCardsInputSchema,
   TagsSchema,
   SearchCardsInputSchema,
@@ -168,6 +169,26 @@ describe('WriteCardsInputSchema', () => {
   it('rejects more than 50 cards', () => {
     const cards = Array.from({ length: 51 }, () => validCard);
     expect(() => WriteCardsInputSchema.parse({ cards })).toThrow();
+  });
+});
+
+describe('CardIdInputSchema', () => {
+  const validId = '88888888-8888-8888-8888-888888888888';
+
+  it('defaults include_deleted to false', () => {
+    const result = CardIdInputSchema.parse({ ids: [validId] });
+    expect(result.include_deleted).toBe(false);
+  });
+
+  it('accepts include_deleted: true', () => {
+    const result = CardIdInputSchema.parse({ ids: [validId], include_deleted: true });
+    expect(result.include_deleted).toBe(true);
+  });
+
+  it('rejects non-boolean include_deleted', () => {
+    expect(() =>
+      CardIdInputSchema.parse({ ids: [validId], include_deleted: 'yes' as unknown as boolean }),
+    ).toThrow();
   });
 });
 

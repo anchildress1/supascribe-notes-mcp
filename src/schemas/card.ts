@@ -119,6 +119,11 @@ export const CardIdInputSchema = z
       .min(1, 'At least one card id is required')
       .max(50, 'Maximum 50 card ids per request')
       .describe('Array of card UUIDs to lookup.'),
+    include_deleted: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe('When true, soft-deleted cards are included in results. Default: false.'),
   })
   .strict();
 

@@ -118,6 +118,15 @@ describe('Lookup Tools Unit Tests', () => {
     expect(body.cards).toEqual([{ objectID: id }]);
   });
 
+  it('handleLookupCardsById skips deleted_at filter when include_deleted is true', async () => {
+    const id = '88888888-8888-8888-8888-888888888888';
+    setQueryResult(mockSupabase, { data: [{ objectID: id }], error: null });
+
+    await handleLookupCardsById(mockSupabase as SupabaseClient, [id], true);
+
+    expect(mockSupabase.is).not.toHaveBeenCalled();
+  });
+
   it('handleLookupCardsById returns error when query fails', async () => {
     setQueryResult(mockSupabase, { data: null, error: { message: 'boom' } });
 

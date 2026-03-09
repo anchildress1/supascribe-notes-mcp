@@ -5,13 +5,14 @@ import { logger } from '../lib/logger.js';
 export async function handleLookupCardsById(
   supabase: SupabaseClient,
   ids: string[],
+  includeDeleted = false,
 ): Promise<CallToolResult> {
-  logger.info({ ids }, 'Looking up cards by ID list');
-  const { data, error } = await supabase
-    .from('cards')
-    .select('*')
-    .in('objectID', ids)
-    .is('deleted_at', null);
+  logger.info({ ids, includeDeleted }, 'Looking up cards by ID list');
+  let query = supabase.from('cards').select('*').in('objectID', ids);
+  if (!includeDeleted) {
+    query = query.is('deleted_at', null);
+  }
+  const { data, error } = await query;
 
   if (error) {
     logger.error({ ids, error }, 'Error looking up cards by ID list');

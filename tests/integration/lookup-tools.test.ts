@@ -224,6 +224,22 @@ describe('Lookup Tools Integration', () => {
     ]);
   });
 
+  it('returns soft-deleted cards when include_deleted is true', async () => {
+    const { res } = await invokeApp(app, {
+      method: 'POST',
+      url: '/api/lookup-card-by-id',
+      headers: {
+        ...authHeaders,
+        'content-type': 'application/json',
+      },
+      body: { ids: ['88888888-8888-8888-8888-888888888888'], include_deleted: true },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res._getJSON() as { cards: Array<{ objectID: string }> };
+    expect(body.cards).toHaveLength(1);
+  });
+
   it('validates lookup_card_by_id input', async () => {
     const { res } = await invokeApp(app, {
       method: 'POST',
