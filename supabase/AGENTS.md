@@ -60,9 +60,25 @@ If a migration file exists locally but is not in the list, apply it before writi
 ## Security Conventions
 
 - RLS must remain enabled on all tables. Never `ALTER TABLE ... DISABLE ROW LEVEL SECURITY`.
-- Discovery views use `security_invoker = true` and `security_barrier = true` (see migration 006).
 - Grants go to `anon` and `authenticated` roles only — never to `postgres` or `service_role`.
 - Do not reference the `service_role` key in SQL.
+
+### View Security — Always Declare Inline
+
+Discovery views must always carry `security_invoker = true` and `security_barrier = true`.
+**`CREATE OR REPLACE VIEW` silently resets any previously-set view options** — the options
+do not survive a recreation unless they are re-declared in the statement itself. Always
+write them inline:
+
+```sql
+CREATE OR REPLACE VIEW public.my_view
+  WITH (security_invoker = true, security_barrier = true)
+AS
+SELECT ...;
+```
+
+Never assume that security options set by a prior migration persist through a view
+recreation. Every migration that touches a view must include the `WITH (...)` clause.
 
 ---
 

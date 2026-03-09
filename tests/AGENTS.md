@@ -84,8 +84,8 @@ See `tests/unit/tools/lookup-tools.test.ts` for the canonical implementation.
 ### Pattern C — Module Mock + Query Builder (integration tests)
 
 Integration tests use `vi.mock('../../src/lib/supabase.js', ...)` at the module level.
-The cards query builder in integration tests implements real filter logic (actual array
-filtering, not just stubs) so request-level assertions are meaningful.
+The cards query builder in integration tests implements **real in-memory filter logic** —
+not no-op stubs — so request-level assertions are meaningful.
 
 ```typescript
 vi.mock('../../src/lib/supabase.js', () => ({
@@ -96,7 +96,35 @@ vi.mock('../../src/lib/supabase.js', () => ({
 }));
 ```
 
+**Every filter method the source code calls must actually filter the in-memory `result`
+array.** A method that just returns `queryBuilder` without mutating `result` makes
+integration assertions meaningless — tests will pass regardless of whether the filtering
+code is correct or even present.
+
+When the source code adds a new chain method (e.g., `.is('deleted_at', null)`), the
+integration mock must filter accordingly:
+
+```typescript
+is: vi.fn().mockImplementation((col: string, val: unknown) => {
+  if (col === 'deleted_at' && val === null) {
+    result = result.filter((card) => card.deleted_at == null);
+  }
+  return queryBuilder;
+}),
+```
+
 See `tests/integration/lookup-tools.test.ts` for the canonical implementation.
+
+### Fixture Coverage for State Variants
+
+When a feature has distinct record states (e.g., active vs. soft-deleted), the fixture
+set must contain at least one record in **each** state. Tests must then assert:
+
+1. The default path **excludes** the non-default state (e.g., deleted cards hidden)
+2. The opt-in path **includes** it (e.g., `include_deleted: true` returns deleted cards)
+
+A test that only exercises one state proves nothing about the other. If all fixtures are
+in the default state, a bug that skips filtering entirely will still pass every assertion.
 
 ---
 
