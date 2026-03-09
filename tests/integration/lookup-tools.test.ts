@@ -66,6 +66,7 @@ const createCardsQueryBuilder = () => {
       }
       return queryBuilder;
     }),
+    is: vi.fn().mockImplementation(() => queryBuilder),
     ilike: vi.fn().mockImplementation((col: string, val: string) => {
       const pattern = val.replaceAll('%', '').toLowerCase();
       if (col === 'title') {

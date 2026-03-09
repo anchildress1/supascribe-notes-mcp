@@ -7,7 +7,11 @@ export async function handleLookupCardsById(
   ids: string[],
 ): Promise<CallToolResult> {
   logger.info({ ids }, 'Looking up cards by ID list');
-  const { data, error } = await supabase.from('cards').select('*').in('objectID', ids);
+  const { data, error } = await supabase
+    .from('cards')
+    .select('*')
+    .in('objectID', ids)
+    .is('deleted_at', null);
 
   if (error) {
     logger.error({ ids, error }, 'Error looking up cards by ID list');
@@ -150,7 +154,7 @@ export async function handleSearchCards(
   }
 
   logger.info({ filters: normalizedFilters }, 'Searching cards');
-  let query = supabase.from('cards').select('*');
+  let query = supabase.from('cards').select('*').is('deleted_at', null);
 
   if (normalizedFilters.category) {
     for (const token of tokenize(normalizedFilters.category)) {

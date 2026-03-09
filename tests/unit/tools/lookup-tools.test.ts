@@ -13,6 +13,7 @@ type QueryMock = {
   select: ReturnType<typeof vi.fn>;
   eq: ReturnType<typeof vi.fn>;
   in: ReturnType<typeof vi.fn>;
+  is: ReturnType<typeof vi.fn>;
   ilike: ReturnType<typeof vi.fn>;
   or: ReturnType<typeof vi.fn>;
   contains: ReturnType<typeof vi.fn>;
@@ -31,6 +32,7 @@ const createQueryMock = (initialValue: unknown): QueryMock => {
   const select = vi.fn();
   const eq = vi.fn();
   const inFn = vi.fn();
+  const isFn = vi.fn();
   const ilike = vi.fn();
   const or = vi.fn();
   const contains = vi.fn();
@@ -40,6 +42,7 @@ const createQueryMock = (initialValue: unknown): QueryMock => {
     select: ReturnType<typeof vi.fn>;
     eq: ReturnType<typeof vi.fn>;
     in: ReturnType<typeof vi.fn>;
+    is: ReturnType<typeof vi.fn>;
     ilike: ReturnType<typeof vi.fn>;
     or: ReturnType<typeof vi.fn>;
     contains: ReturnType<typeof vi.fn>;
@@ -54,6 +57,7 @@ const createQueryMock = (initialValue: unknown): QueryMock => {
         select: select.mockImplementation(() => query),
         eq: eq.mockImplementation(() => query),
         in: inFn.mockImplementation(() => query),
+        is: isFn.mockImplementation(() => query),
         ilike: ilike.mockImplementation(() => query),
         or: or.mockImplementation(() => query),
         contains: contains.mockImplementation(() => query),
@@ -70,6 +74,7 @@ const createQueryMock = (initialValue: unknown): QueryMock => {
     select,
     eq,
     in: inFn,
+    is: isFn,
     ilike,
     or,
     contains,
@@ -109,6 +114,7 @@ describe('Lookup Tools Unit Tests', () => {
 
     expect(mockSupabase.from).toHaveBeenCalledWith('cards');
     expect(mockSupabase.in).toHaveBeenCalledWith('objectID', [id]);
+    expect(mockSupabase.is).toHaveBeenCalledWith('deleted_at', null);
     expect(body.cards).toEqual([{ objectID: id }]);
   });
 
@@ -255,6 +261,7 @@ describe('Lookup Tools Unit Tests', () => {
 
     expect(mockSupabase.from).toHaveBeenCalledWith('cards');
     expect(mockSupabase.select).toHaveBeenCalledWith('*');
+    expect(mockSupabase.is).toHaveBeenCalledWith('deleted_at', null);
     expect(mockSupabase.ilike).toHaveBeenCalledWith('category', '%know%');
     expect(mockSupabase.or).toHaveBeenCalledTimes(1);
     expect(mockSupabase.or.mock.calls[0][0]).toContain('title.ilike.%index%');
