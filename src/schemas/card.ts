@@ -2,6 +2,24 @@ import * as z from 'zod';
 
 const TagListSchema = z.array(z.string().trim().min(1, 'tag values must not be empty'));
 
+const optionalTimestamp = (fieldName: string) =>
+  z.preprocess(
+    (value) => {
+      if (value === null || value === undefined) return undefined;
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        return trimmed.length === 0 ? undefined : trimmed;
+      }
+      return value;
+    },
+    z
+      .string()
+      .refine((value) => !Number.isNaN(Date.parse(value)), {
+        message: `${fieldName} must be a valid datetime string`,
+      })
+      .optional(),
+  );
+
 export const TagsSchema = z
   .object({
     lvl0: TagListSchema.describe(
@@ -60,46 +78,12 @@ export const CardInputSchema = z.object({
     .min(1, 'signal must be between 1 and 5')
     .max(5, 'signal must be between 1 and 5')
     .describe('Relevance score or importance signal, from 1 (low) to 5 (high).'),
-  created_at: z
-    .preprocess(
-      (value) => {
-        if (value === null || value === undefined) return undefined;
-        if (typeof value === 'string') {
-          const trimmed = value.trim();
-          return trimmed.length === 0 ? undefined : trimmed;
-        }
-        return value;
-      },
-      z
-        .string()
-        .refine((value) => !Number.isNaN(Date.parse(value)), {
-          message: 'created_at must be a valid datetime string',
-        })
-        .optional(),
-    )
-    .describe(
-      'Optional historical creation timestamp. If provided, it will be normalized to ISO-8601 UTC before upsert.',
-    ),
-  deleted_at: z
-    .preprocess(
-      (value) => {
-        if (value === null || value === undefined) return undefined;
-        if (typeof value === 'string') {
-          const trimmed = value.trim();
-          return trimmed.length === 0 ? undefined : trimmed;
-        }
-        return value;
-      },
-      z
-        .string()
-        .refine((value) => !Number.isNaN(Date.parse(value)), {
-          message: 'deleted_at must be a valid datetime string',
-        })
-        .optional(),
-    )
-    .describe(
-      'Optional soft-delete timestamp. If provided, the card is marked as deleted at that time. Omit to leave deletion status unchanged.',
-    ),
+  created_at: optionalTimestamp('created_at').describe(
+    'Optional historical creation timestamp. If provided, it will be normalized to ISO-8601 UTC before upsert.',
+  ),
+  deleted_at: optionalTimestamp('deleted_at').describe(
+    'Optional soft-delete timestamp. If provided, the card is marked as deleted at that time. Omit to leave deletion status unchanged.',
+  ),
 });
 
 export const WriteCardsInputSchema = z.object({
