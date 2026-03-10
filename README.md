@@ -4,15 +4,15 @@ A TypeScript MCP server that writes index cards to Supabase, deployed on Google 
 
 ## MCP Tools
 
-| Tool                | Description                                                     |
-| ------------------- | --------------------------------------------------------------- |
-| `health`            | Check server status and Supabase connectivity                   |
-| `write_cards`       | Validate and upsert index cards with revision history           |
-| `lookup_card_by_id` | Find specific index cards by UUID list                          |
-| `lookup_categories` | Get all unique categories used across cards                     |
-| `lookup_projects`   | Get all unique project identifiers used across cards            |
-| `lookup_tags`       | Get all unique lvl0/lvl1 tags used across cards                 |
-| `search_cards`      | Keyword search by category/tag/project/fact with loose matching |
+| Tool                | Description                                                         |
+| ------------------- | ------------------------------------------------------------------- |
+| `health`            | Check server status and Supabase connectivity                       |
+| `write_cards`       | Validate and upsert index cards with revision history               |
+| `lookup_card_by_id` | Find specific index cards by UUID list (excludes soft-deleted)      |
+| `lookup_categories` | Get all unique categories used across active cards                  |
+| `lookup_projects`   | Get all unique project identifiers used across active cards         |
+| `lookup_tags`       | Get all unique lvl0/lvl1 tags used across active cards              |
+| `search_cards`      | Keyword search by category/tag/project/fact (excludes soft-deleted) |
 
 ## Architecture
 
@@ -160,7 +160,8 @@ To fully test the MCP functionality, configure your MCP client to connect to the
   "category": "string (required)",
   "signal": "number 1–5 (required)",
   "created_at": "timestamptz (optional input for historical imports; normalized on write)",
-  "updated_at": "timestamptz (auto)"
+  "updated_at": "timestamptz (auto)",
+  "deleted_at": "timestamptz (optional soft-delete timestamp; omit to leave deletion status unchanged)"
 }
 ```
 

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   CardInputSchema,
+  CardIdInputSchema,
   WriteCardsInputSchema,
   TagsSchema,
   SearchCardsInputSchema,
@@ -124,6 +125,26 @@ describe('CardInputSchema', () => {
       CardInputSchema.parse({ ...validCard, created_at: 123 as unknown as string }),
     ).toThrow();
   });
+
+  it('accepts deleted_at when provided', () => {
+    const deleted_at = '2024-06-01T12:00:00Z';
+    const result = CardInputSchema.parse({ ...validCard, deleted_at: `  ${deleted_at}  ` });
+    expect(result.deleted_at).toBe(deleted_at);
+  });
+
+  it('omits deleted_at when not provided', () => {
+    const result = CardInputSchema.parse(validCard);
+    expect(result.deleted_at).toBeUndefined();
+  });
+
+  it('normalizes blank deleted_at to undefined', () => {
+    const result = CardInputSchema.parse({ ...validCard, deleted_at: '   ' });
+    expect(result.deleted_at).toBeUndefined();
+  });
+
+  it('rejects invalid deleted_at string', () => {
+    expect(() => CardInputSchema.parse({ ...validCard, deleted_at: 'not-a-date' })).toThrow();
+  });
 });
 
 describe('WriteCardsInputSchema', () => {
@@ -148,6 +169,26 @@ describe('WriteCardsInputSchema', () => {
   it('rejects more than 50 cards', () => {
     const cards = Array.from({ length: 51 }, () => validCard);
     expect(() => WriteCardsInputSchema.parse({ cards })).toThrow();
+  });
+});
+
+describe('CardIdInputSchema', () => {
+  const validId = '88888888-8888-8888-8888-888888888888';
+
+  it('defaults include_deleted to false', () => {
+    const result = CardIdInputSchema.parse({ ids: [validId] });
+    expect(result.include_deleted).toBe(false);
+  });
+
+  it('accepts include_deleted: true', () => {
+    const result = CardIdInputSchema.parse({ ids: [validId], include_deleted: true });
+    expect(result.include_deleted).toBe(true);
+  });
+
+  it('rejects non-boolean include_deleted', () => {
+    expect(() =>
+      CardIdInputSchema.parse({ ids: [validId], include_deleted: 'yes' as unknown as boolean }),
+    ).toThrow();
   });
 });
 

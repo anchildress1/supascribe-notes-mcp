@@ -316,7 +316,11 @@ export function createApp(config: Config): express.Express {
         return;
       }
 
-      const result = await handleLookupCardsById(supabase, bodyResult.data.ids);
+      const result = await handleLookupCardsById(
+        supabase,
+        bodyResult.data.ids,
+        bodyResult.data.include_deleted,
+      );
       sendToolResult(res, result);
     } catch (err) {
       logger.error({ error: err }, 'REST lookup-card-by-id failed');
@@ -495,7 +499,8 @@ export function createMcpServer(supabase: SupabaseClient, serverVersion = '1.0.0
         ui: { visibility: ['model', 'app'] },
       },
     },
-    async ({ ids }: CardIdInput) => handleLookupCardsById(supabase, ids),
+    async ({ ids, include_deleted }: CardIdInput) =>
+      handleLookupCardsById(supabase, ids, include_deleted),
   );
 
   registerToolAndRecord(

@@ -39,11 +39,14 @@ type CardRow = {
   signal: number;
   created_at?: string;
   updated_at: string;
+  deleted_at?: string;
 };
 
 function buildCardRow(card: CardInput, objectID: string): CardRow {
   const createdAtInput = typeof card.created_at === 'string' ? card.created_at.trim() : undefined;
   const createdAt = createdAtInput ? new Date(createdAtInput).toISOString() : undefined;
+  const deletedAtInput = typeof card.deleted_at === 'string' ? card.deleted_at.trim() : undefined;
+  const deletedAt = deletedAtInput ? new Date(deletedAtInput).toISOString() : undefined;
   const now = new Date().toISOString();
 
   return {
@@ -58,6 +61,7 @@ function buildCardRow(card: CardInput, objectID: string): CardRow {
     signal: card.signal,
     ...(createdAt ? { created_at: createdAt } : {}),
     updated_at: now,
+    ...(deletedAt ? { deleted_at: deletedAt } : {}),
   };
 }
 

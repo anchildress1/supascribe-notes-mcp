@@ -202,6 +202,24 @@ describe('handleWriteCards', () => {
     expect(upsertPayload).not.toHaveProperty('created_at');
   });
 
+  it('normalizes provided deleted_at for soft-delete upserts', async () => {
+    const supabase = createSupabaseHarness();
+
+    await handleWriteCards(supabase, [{ ...validCard, deleted_at: '2024-06-01T12:00:00-05:00' }]);
+
+    const upsertPayload = supabase._mocks.upsertMock.mock.calls[0]?.[0] as Record<string, string>;
+    expect(upsertPayload.deleted_at).toBe('2024-06-01T17:00:00.000Z');
+  });
+
+  it('omits deleted_at when not provided to leave deletion status unchanged', async () => {
+    const supabase = createSupabaseHarness();
+
+    await handleWriteCards(supabase, [validCard]);
+
+    const upsertPayload = supabase._mocks.upsertMock.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(upsertPayload).not.toHaveProperty('deleted_at');
+  });
+
   it('creates generation run before writing revisions', async () => {
     const supabase = createSupabaseHarness();
 

@@ -13,6 +13,7 @@ const mockCards = [
     category: 'Test Category',
     projects: ['Project A'],
     tags: { lvl0: ['Tag 0'], lvl1: ['Tag 1'] },
+    deleted_at: null,
   },
   {
     objectID: '99999999-9999-9999-9999-999999999999',
@@ -22,6 +23,17 @@ const mockCards = [
     category: 'Other Category',
     projects: ['Project B'],
     tags: { lvl0: ['Other Tag'], lvl1: [] },
+    deleted_at: null,
+  },
+  {
+    objectID: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+    title: 'Deleted Card',
+    blurb: 'Blurb 3',
+    fact: 'Fact 3',
+    category: 'Deleted Category',
+    projects: [],
+    tags: { lvl0: [], lvl1: [] },
+    deleted_at: '2026-01-01T00:00:00.000Z',
   },
 ];
 
@@ -63,6 +75,12 @@ const createCardsQueryBuilder = () => {
     in: vi.fn().mockImplementation((col: string, val: string[]) => {
       if (col === 'objectID') {
         result = result.filter((card) => val.includes(card.objectID));
+      }
+      return queryBuilder;
+    }),
+    is: vi.fn().mockImplementation((col: string, val: unknown) => {
+      if (col === 'deleted_at' && val === null) {
+        result = result.filter((card) => card.deleted_at == null);
       }
       return queryBuilder;
     }),
@@ -221,6 +239,46 @@ describe('Lookup Tools Integration', () => {
       '88888888-8888-8888-8888-888888888888',
       '99999999-9999-9999-9999-999999999999',
     ]);
+  });
+
+  it('excludes soft-deleted cards from lookup by default', async () => {
+    const { res } = await invokeApp(app, {
+      method: 'POST',
+      url: '/api/lookup-card-by-id',
+      headers: {
+        ...authHeaders,
+        'content-type': 'application/json',
+      },
+      body: {
+        ids: ['88888888-8888-8888-8888-888888888888', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'],
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res._getJSON() as { cards: Array<{ objectID: string }> };
+    expect(body.cards).toHaveLength(1);
+    expect(body.cards[0].objectID).toBe('88888888-8888-8888-8888-888888888888');
+  });
+
+  it('returns soft-deleted cards when include_deleted is true', async () => {
+    const { res } = await invokeApp(app, {
+      method: 'POST',
+      url: '/api/lookup-card-by-id',
+      headers: {
+        ...authHeaders,
+        'content-type': 'application/json',
+      },
+      body: {
+        ids: ['88888888-8888-8888-8888-888888888888', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'],
+        include_deleted: true,
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res._getJSON() as { cards: Array<{ objectID: string }> };
+    expect(body.cards).toHaveLength(2);
+    const ids = body.cards.map((c) => c.objectID).sort((a, b) => a.localeCompare(b));
+    expect(ids).toContain('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
   });
 
   it('validates lookup_card_by_id input', async () => {
