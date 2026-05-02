@@ -6,6 +6,9 @@ SERVICE_NAME="supascribe-notes"
 DIVIDER="=================================================="
 REGION="us-east1"
 PORT="8080"
+# Dedicated runtime SA — created once via migration; holds no project-level IAM roles.
+# Granted roles/secretmanager.secretAccessor on SUPABASE_SERVICE_ROLE_KEY and SUPABASE_ANON_KEY only.
+SA_NAME="supascribe-notes-sa"
 
 # Check dependencies
 if ! command -v gcloud &> /dev/null; then
@@ -19,6 +22,7 @@ if [[ "$PROJECT_ID" == "(unset)" ]] || [[ -z "$PROJECT_ID" ]]; then
     exit 1
 fi
 
+SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')
 
 echo "$DIVIDER"
@@ -26,6 +30,7 @@ echo "DEPLOYMENT: $SERVICE_NAME"
 echo "$DIVIDER"
 echo "Project: $PROJECT_ID ($PROJECT_NUMBER)"
 echo "Region:  $REGION"
+echo "SA:      $SA_EMAIL"
 echo "$DIVIDER"
 
 # Load environment variables
@@ -47,9 +52,20 @@ require_env() {
     return 0
 }
 
+require_secret() {
+    local name=$1
+    if ! gcloud secrets describe "$name" --project "$PROJECT_ID" --quiet &>/dev/null; then
+        echo "Error: Secret '$name' not found in Secret Manager for project '$PROJECT_ID'." >&2
+        echo "       Create it with: gcloud secrets create $name --project $PROJECT_ID --data-file=-" >&2
+        exit 1
+    fi
+}
+
 require_env "SUPABASE_URL"
-require_env "SUPABASE_SERVICE_ROLE_KEY"
-require_env "SUPABASE_ANON_KEY"
+
+# Secrets must exist in Secret Manager — deploy no longer accepts them as local env vars.
+require_secret "SUPABASE_SERVICE_ROLE_KEY"
+require_secret "SUPABASE_ANON_KEY"
 
 # SERVER_VERSION is used to bust client caches (e.g., ChatGPT tool metadata).
 # If not explicitly set, default to the current git commit SHA.
@@ -61,12 +77,27 @@ else
     SERVER_VERSION_VALUE="1.0.0"
 fi
 
+# Verify or create SA
+if ! gcloud iam service-accounts describe "$SA_EMAIL" --project "$PROJECT_ID" --quiet &>/dev/null; then
+    echo "Creating service account: $SA_EMAIL..."
+    gcloud iam service-accounts create "$SA_NAME" \
+        --project "$PROJECT_ID" \
+        --display-name "Supascribe Notes Cloud Run runtime SA"
+    for secret in SUPABASE_SERVICE_ROLE_KEY SUPABASE_ANON_KEY; do
+        gcloud secrets add-iam-policy-binding "$secret" \
+            --project "$PROJECT_ID" \
+            --member "serviceAccount:$SA_EMAIL" \
+            --role "roles/secretmanager.secretAccessor" --quiet
+    done
+fi
+
 # Enable required services
 echo "Enabling required Google Cloud APIs..."
 gcloud services enable \
     artifactregistry.googleapis.com \
     cloudbuild.googleapis.com \
     run.googleapis.com \
+    secretmanager.googleapis.com \
     --project "$PROJECT_ID" --quiet
 
 # Create Artifact Registry repo if needed
@@ -92,16 +123,16 @@ EXISTING_URL=$(gcloud run services describe "$SERVICE_NAME" \
 
 if [[ -n "$PUBLIC_URL" ]]; then
     echo "Using configured PUBLIC_URL: $PUBLIC_URL"
-    ENV_VARS="SUPABASE_URL=$SUPABASE_URL,SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY,SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY,PUBLIC_URL=$PUBLIC_URL,SERVER_VERSION=$SERVER_VERSION_VALUE"
+    ENV_VARS="SUPABASE_URL=$SUPABASE_URL,PUBLIC_URL=$PUBLIC_URL,SERVER_VERSION=$SERVER_VERSION_VALUE"
 elif [[ -n "$EXISTING_URL" ]]; then
     echo "Found existing service URL: $EXISTING_URL"
-    ENV_VARS="SUPABASE_URL=$SUPABASE_URL,SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY,SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY,PUBLIC_URL=$EXISTING_URL,SERVER_VERSION=$SERVER_VERSION_VALUE"
+    ENV_VARS="SUPABASE_URL=$SUPABASE_URL,PUBLIC_URL=$EXISTING_URL,SERVER_VERSION=$SERVER_VERSION_VALUE"
 else
     echo "First deployment (or service not found)..."
-    ENV_VARS="SUPABASE_URL=$SUPABASE_URL,SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY,SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY,SERVER_VERSION=$SERVER_VERSION_VALUE"
+    ENV_VARS="SUPABASE_URL=$SUPABASE_URL,SERVER_VERSION=$SERVER_VERSION_VALUE"
 fi
 
-# Deploy to Cloud Run
+# Deploy to Cloud Run — secrets are resolved at runtime from Secret Manager, never passed via CLI.
 echo "Deploying to Cloud Run..."
 gcloud run deploy "$SERVICE_NAME" \
     --image "$IMAGE_URI" \
@@ -110,13 +141,15 @@ gcloud run deploy "$SERVICE_NAME" \
     --allow-unauthenticated \
     --port "$PORT" \
     --timeout=600 \
-    --set-env-vars "$ENV_VARS"
+    --service-account "$SA_EMAIL" \
+    --set-env-vars "$ENV_VARS" \
+    --set-secrets "SUPABASE_SERVICE_ROLE_KEY=SUPABASE_SERVICE_ROLE_KEY:latest,SUPABASE_ANON_KEY=SUPABASE_ANON_KEY:latest"
 
 # If it was a first deploy (or URL changed, unlikely), and we didn't set PUBLIC_URL, update it now
 if [[ -z "$EXISTING_URL" && -z "$PUBLIC_URL" ]]; then
     NEW_URL=$(gcloud run services describe "$SERVICE_NAME" \
         --region "$REGION" --project "$PROJECT_ID" --format 'value(status.url)')
-    
+
     echo "Updating new service with PUBLIC_URL=$NEW_URL..."
     gcloud run services update "$SERVICE_NAME" \
         --region "$REGION" \
