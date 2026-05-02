@@ -130,43 +130,31 @@ describe('MCP Server Integration', () => {
     expect(text).toContain('deny()');
   });
 
-  it('GET /mcp/auth/authorize redirects to /auth/authorize with valid UUID', async () => {
-    const { res } = await invokeApp(app, {
-      method: 'GET',
-      url: '/mcp/auth/authorize?authorization_id=550e8400-e29b-41d4-a716-446655440000',
-    });
-    expect(res.statusCode).toBe(307);
-    expect(res._getHeaders().location).toBe(
+  it.each([
+    [
+      'redirects to /auth/authorize with valid UUID',
+      '/mcp/auth/authorize?authorization_id=550e8400-e29b-41d4-a716-446655440000',
       '/auth/authorize?authorization_id=550e8400-e29b-41d4-a716-446655440000',
-    );
-  });
-
-  it('GET /mcp/auth/authorize strips non-UUID authorization_id', async () => {
-    const { res } = await invokeApp(app, {
-      method: 'GET',
-      url: '/mcp/auth/authorize?authorization_id=../../evil',
-    });
-    expect(res.statusCode).toBe(307);
-    expect(res._getHeaders().location).toBe('/auth/authorize');
-  });
-
-  it('GET /mcp/auth/authorize strips unknown params and rejects non-UUID', async () => {
-    const { res } = await invokeApp(app, {
-      method: 'GET',
-      url: '/mcp/auth/authorize?authorization_id=123&redirect_uri=https://evil.com',
-    });
-    expect(res.statusCode).toBe(307);
-    expect(res._getHeaders().location).toBe('/auth/authorize');
-  });
-
-  it('GET /mcp/auth/authorize redirects cleanly with no params', async () => {
-    const { res } = await invokeApp(app, {
-      method: 'GET',
-      url: '/mcp/auth/authorize',
-    });
-    expect(res.statusCode).toBe(307);
-    expect(res._getHeaders().location).toBe('/auth/authorize');
-  });
+    ],
+    [
+      'strips non-UUID authorization_id',
+      '/mcp/auth/authorize?authorization_id=../../evil',
+      '/auth/authorize',
+    ],
+    [
+      'strips unknown params and rejects non-UUID',
+      '/mcp/auth/authorize?authorization_id=123&redirect_uri=https://evil.com',
+      '/auth/authorize',
+    ],
+    ['redirects cleanly with no params', '/mcp/auth/authorize', '/auth/authorize'],
+  ])(
+    'GET /mcp/auth/authorize %s',
+    async (_label: string, url: string, expectedLocation: string) => {
+      const { res } = await invokeApp(app, { method: 'GET', url });
+      expect(res.statusCode).toBe(307);
+      expect(res._getHeaders().location).toBe(expectedLocation);
+    },
+  );
 
   it('GET /mcp returns 401 without auth', async () => {
     const { res } = await invokeApp(app, {
