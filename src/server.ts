@@ -207,8 +207,7 @@ export function createApp(config: Config): express.Express {
     const raw = req.query['authorization_id'];
     const UUID_RE = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
     const authId = typeof raw === 'string' && UUID_RE.test(raw) ? raw : null;
-    const target =
-      authId != null ? `/auth/authorize?authorization_id=${authId}` : '/auth/authorize';
+    const target = authId ? `/auth/authorize?authorization_id=${authId}` : '/auth/authorize';
     res.redirect(307, target); // nosemgrep: javascript.express.web.tainted-redirect-express.tainted-redirect-express
   });
 
