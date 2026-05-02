@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeAll } from 'vitest';
 import { createApp } from '../../src/server.js';
-import type { Config } from '../../src/config.js';
-import { invokeApp } from '../helpers/http.js';
+import { invokeApp, testConfig } from '../helpers/http.js';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -48,15 +47,6 @@ vi.mock('../../src/lib/supabase.js', () => ({
     },
   }),
 }));
-
-const testConfig: Config = {
-  supabaseUrl: 'http://localhost:54321',
-  supabaseServiceRoleKey: 'test-key',
-  supabaseAnonKey: 'anon-key',
-  port: 0,
-  publicUrl: 'http://localhost:0',
-  serverVersion: '1.0.0',
-};
 
 const hasForbiddenSchemaKey = (value: unknown): boolean => {
   if (!value || typeof value !== 'object') return false;

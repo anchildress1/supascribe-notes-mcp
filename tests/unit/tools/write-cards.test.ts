@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { CardInput } from '../../../src/schemas/card.js';
 import { handleWriteCards } from '../../../src/tools/write-cards.js';
+import { asTextJson } from '../../helpers/http.js';
 
 type SelectResult = { data: unknown; error: null | { message: string } };
 type UpsertResult = { error: null | { message: string } };
@@ -29,13 +30,6 @@ type HarnessOptions = {
   upsertMock?: ReturnType<typeof vi.fn>;
   generationRunsInsertMock?: ReturnType<typeof vi.fn>;
   generationRunsUpdateEqMock?: ReturnType<typeof vi.fn>;
-};
-
-const asTextJson = (result: { content: Array<{ type: string; text: string }> }) => {
-  return JSON.parse(result.content[0]?.type === 'text' ? result.content[0].text : '{}') as Record<
-    string,
-    unknown
-  >;
 };
 
 function createSupabaseHarness(options: HarnessOptions = {}): SupabaseHarness {

@@ -7,6 +7,7 @@ import {
   handleLookupTags,
   handleSearchCards,
 } from '../../../src/tools/lookup-tools.js';
+import { asTextJson } from '../../helpers/http.js';
 
 type QueryMock = {
   from: ReturnType<typeof vi.fn>;
@@ -19,11 +20,6 @@ type QueryMock = {
   contains: ReturnType<typeof vi.fn>;
   maybeSingle: ReturnType<typeof vi.fn>;
   setResult: (value: unknown) => void;
-};
-
-const asTextJson = <T>(result: { content: Array<{ type: string; text: string }> }): T => {
-  const text = result.content[0]?.type === 'text' ? result.content[0].text : '{}';
-  return JSON.parse(text) as T;
 };
 
 const createQueryMock = (initialValue: unknown): QueryMock => {

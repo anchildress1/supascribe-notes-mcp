@@ -40,7 +40,6 @@ type CardRow = {
   created_at?: string;
   deleted_at?: string;
   updated_at: string;
-  deleted_at?: string;
 };
 
 function buildCardRow(card: CardInput, objectID: string): CardRow {
@@ -63,7 +62,6 @@ function buildCardRow(card: CardInput, objectID: string): CardRow {
     ...(createdAt ? { created_at: createdAt } : {}),
     ...(deletedAt ? { deleted_at: deletedAt } : {}),
     updated_at: now,
-    ...(deletedAt ? { deleted_at: deletedAt } : {}),
   };
 }
 

@@ -63,6 +63,15 @@ require_secret() {
 
 require_env "SUPABASE_URL"
 
+# Enable required services before anything that calls the Secret Manager API.
+echo "Enabling required Google Cloud APIs..."
+gcloud services enable \
+    artifactregistry.googleapis.com \
+    cloudbuild.googleapis.com \
+    run.googleapis.com \
+    secretmanager.googleapis.com \
+    --project "$PROJECT_ID" --quiet
+
 # Secrets must exist in Secret Manager — deploy no longer accepts them as local env vars.
 require_secret "SUPABASE_SERVICE_ROLE_KEY"
 require_secret "SUPABASE_ANON_KEY"
@@ -83,22 +92,15 @@ if ! gcloud iam service-accounts describe "$SA_EMAIL" --project "$PROJECT_ID" --
     gcloud iam service-accounts create "$SA_NAME" \
         --project "$PROJECT_ID" \
         --display-name "Supascribe Notes Cloud Run runtime SA"
-    for secret in SUPABASE_SERVICE_ROLE_KEY SUPABASE_ANON_KEY; do
-        gcloud secrets add-iam-policy-binding "$secret" \
-            --project "$PROJECT_ID" \
-            --member "serviceAccount:$SA_EMAIL" \
-            --role "roles/secretmanager.secretAccessor" --quiet
-    done
 fi
 
-# Enable required services
-echo "Enabling required Google Cloud APIs..."
-gcloud services enable \
-    artifactregistry.googleapis.com \
-    cloudbuild.googleapis.com \
-    run.googleapis.com \
-    secretmanager.googleapis.com \
-    --project "$PROJECT_ID" --quiet
+# Always ensure IAM bindings are present — gcloud is a no-op if the binding already exists.
+for secret in SUPABASE_SERVICE_ROLE_KEY SUPABASE_ANON_KEY; do
+    gcloud secrets add-iam-policy-binding "$secret" \
+        --project "$PROJECT_ID" \
+        --member "serviceAccount:$SA_EMAIL" \
+        --role "roles/secretmanager.secretAccessor" --quiet
+done
 
 # Create Artifact Registry repo if needed
 if ! gcloud artifacts repositories describe "$SERVICE_NAME" \
