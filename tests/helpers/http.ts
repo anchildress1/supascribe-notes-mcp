@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
 import type { Express, Request } from 'express';
+import type { Config } from '../../src/config.js';
 
 type HeaderValues = Record<string, string | undefined>;
 type RequestOptions = {
@@ -268,3 +269,21 @@ export const invokeApp = async (
 
 export const waitForNextTick = (): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, 0));
+
+export const testConfig: Config = {
+  supabaseUrl: 'http://localhost:54321',
+  supabaseServiceRoleKey: 'test-key',
+  supabaseAnonKey: 'anon-key',
+  port: 0,
+  publicUrl: 'http://localhost:0',
+  serverVersion: '1.0.0',
+};
+
+export const authHeaders = { authorization: 'Bearer test-token' };
+
+export const asTextJson = <T = Record<string, unknown>>(result: {
+  content: Array<{ type: string; text: string }>;
+}): T => {
+  const text = result.content[0]?.type === 'text' ? result.content[0].text : '{}';
+  return JSON.parse(text) as T;
+};

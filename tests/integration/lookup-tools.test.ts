@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeAll } from 'vitest';
 import { createApp } from '../../src/server.js';
-import type { Config } from '../../src/config.js';
-import { invokeApp } from '../helpers/http.js';
+import { invokeApp, testConfig, authHeaders } from '../helpers/http.js';
 
 // Mock Supabase client
 const mockCards = [
@@ -167,19 +166,6 @@ vi.mock('../../src/lib/supabase.js', () => ({
     },
   }),
 }));
-
-const authHeaders = {
-  authorization: 'Bearer test-token',
-};
-
-const testConfig: Config = {
-  supabaseUrl: 'http://localhost:54321',
-  supabaseServiceRoleKey: 'test-key',
-  supabaseAnonKey: 'anon-key',
-  port: 0,
-  publicUrl: 'http://localhost:0',
-  serverVersion: '1.0.0',
-};
 
 describe('Lookup Tools Integration', () => {
   let app: ReturnType<typeof createApp>;

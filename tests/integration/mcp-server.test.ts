@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeAll } from 'vitest';
 import { createApp } from '../../src/server.js';
-import type { Config } from '../../src/config.js';
-import { invokeApp } from '../helpers/http.js';
+import { invokeApp, testConfig } from '../helpers/http.js';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -48,15 +47,6 @@ vi.mock('../../src/lib/supabase.js', () => ({
     },
   }),
 }));
-
-const testConfig: Config = {
-  supabaseUrl: 'http://localhost:54321',
-  supabaseServiceRoleKey: 'test-key',
-  supabaseAnonKey: 'anon-key',
-  port: 0,
-  publicUrl: 'http://localhost:0',
-  serverVersion: '1.0.0',
-};
 
 const hasForbiddenSchemaKey = (value: unknown): boolean => {
   if (!value || typeof value !== 'object') return false;
@@ -140,14 +130,31 @@ describe('MCP Server Integration', () => {
     expect(text).toContain('deny()');
   });
 
-  it('GET /mcp/auth/authorize redirects to /auth/authorize', async () => {
-    const { res } = await invokeApp(app, {
-      method: 'GET',
-      url: '/mcp/auth/authorize?authorization_id=123',
-    });
-    expect(res.statusCode).toBe(302);
-    expect(res._getHeaders().location).toBe('/auth/authorize?authorization_id=123');
-  });
+  it.each([
+    [
+      'redirects to /auth/authorize with valid UUID',
+      '/mcp/auth/authorize?authorization_id=550e8400-e29b-41d4-a716-446655440000',
+      '/auth/authorize?authorization_id=550e8400-e29b-41d4-a716-446655440000',
+    ],
+    [
+      'strips non-UUID authorization_id',
+      '/mcp/auth/authorize?authorization_id=../../evil',
+      '/auth/authorize',
+    ],
+    [
+      'strips unknown params and rejects non-UUID',
+      '/mcp/auth/authorize?authorization_id=123&redirect_uri=https://evil.com',
+      '/auth/authorize',
+    ],
+    ['redirects cleanly with no params', '/mcp/auth/authorize', '/auth/authorize'],
+  ])(
+    'GET /mcp/auth/authorize %s',
+    async (_label: string, url: string, expectedLocation: string) => {
+      const { res } = await invokeApp(app, { method: 'GET', url });
+      expect(res.statusCode).toBe(307);
+      expect(res._getHeaders().location).toBe(expectedLocation);
+    },
+  );
 
   it('GET /mcp returns 401 without auth', async () => {
     const { res } = await invokeApp(app, {
@@ -264,6 +271,7 @@ describe('MCP Server Integration', () => {
       expect(tagsSchema?.properties?.lvl0?.type).toBe('array');
       expect(tagsSchema?.properties?.lvl1?.type).toBe('array');
       expect(tagsSchema?.required).toEqual(expect.arrayContaining(['lvl0', 'lvl1']));
+      expect((writeCardsItems?.deleted_at as { type?: string })?.type).toBe('string');
 
       for (const name of expectedToolNames) {
         const tool = tools.find((candidate) => candidate.name === name) as

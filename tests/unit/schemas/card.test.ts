@@ -145,6 +145,12 @@ describe('CardInputSchema', () => {
   it('rejects invalid deleted_at string', () => {
     expect(() => CardInputSchema.parse({ ...validCard, deleted_at: 'not-a-date' })).toThrow();
   });
+
+  it('rejects non-string deleted_at values', () => {
+    expect(() =>
+      CardInputSchema.parse({ ...validCard, deleted_at: 123 as unknown as string }),
+    ).toThrow();
+  });
 });
 
 describe('WriteCardsInputSchema', () => {
