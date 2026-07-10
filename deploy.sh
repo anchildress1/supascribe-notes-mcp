@@ -143,6 +143,7 @@ gcloud run deploy "$SERVICE_NAME" \
     --allow-unauthenticated \
     --port "$PORT" \
     --timeout=600 \
+    --max-instances=1 \
     --service-account "$SA_EMAIL" \
     --set-env-vars "$ENV_VARS" \
     --set-secrets "SUPABASE_SERVICE_ROLE_KEY=SUPABASE_SERVICE_ROLE_KEY:latest,SUPABASE_ANON_KEY=SUPABASE_ANON_KEY:latest"
@@ -161,6 +162,23 @@ fi
 
 SERVICE_URL=$(gcloud run services describe "$SERVICE_NAME" \
     --region "$REGION" --project "$PROJECT_ID" --format 'value(status.url)')
+
+# Delete all revisions not currently serving traffic
+echo "Cleaning up old revisions..."
+ACTIVE_REVISION=$(gcloud run services describe "$SERVICE_NAME" \
+    --region "$REGION" --project "$PROJECT_ID" \
+    --format='value(status.latestReadyRevisionName)')
+gcloud run revisions list \
+    --service "$SERVICE_NAME" \
+    --region "$REGION" \
+    --project "$PROJECT_ID" \
+    --format='value(metadata.name)' \
+    | grep -v "^${ACTIVE_REVISION}$" \
+    | while read -r rev; do
+        echo "  Deleting $rev..."
+        gcloud run revisions delete "$rev" \
+            --region "$REGION" --project "$PROJECT_ID" --quiet 2>&1 || true
+    done
 
 echo ""
 echo "$DIVIDER"
