@@ -53,11 +53,7 @@ export function renderAuthPage(config: Config): string {
     '      return false;',
     '   }',
     '   try {',
-    "      supabaseClient = supabase.createClient('" +
-      config.supabaseUrl +
-      "', '" +
-      config.supabaseAnonKey +
-      "', {",
+    `      supabaseClient = supabase.createClient(${JSON.stringify(config.supabaseUrl)}, ${JSON.stringify(config.supabaseAnonKey)}, {`,
     '        auth: { debug: true }',
     '      });',
     "      log('Supabase client initialized.');",
