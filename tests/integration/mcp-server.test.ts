@@ -132,17 +132,22 @@ describe('MCP Server Integration', () => {
 
   it.each([
     [
-      'redirects to /auth/authorize with valid UUID',
+      'redirects to /auth/authorize with valid UUID-shaped id',
       '/mcp/auth/authorize?authorization_id=550e8400-e29b-41d4-a716-446655440000',
       '/auth/authorize?authorization_id=550e8400-e29b-41d4-a716-446655440000',
     ],
     [
-      'strips non-UUID authorization_id',
+      'redirects to /auth/authorize with a real Supabase-shaped opaque token',
+      '/mcp/auth/authorize?authorization_id=42vmbzf3xo5bt3eeqre7rnonuqvtc2oz',
+      '/auth/authorize?authorization_id=42vmbzf3xo5bt3eeqre7rnonuqvtc2oz',
+    ],
+    [
+      'strips path-traversal authorization_id',
       '/mcp/auth/authorize?authorization_id=../../evil',
       '/auth/authorize',
     ],
     [
-      'strips unknown params and rejects non-UUID',
+      'strips unknown params and rejects too-short authorization_id',
       '/mcp/auth/authorize?authorization_id=123&redirect_uri=https://evil.com',
       '/auth/authorize',
     ],
