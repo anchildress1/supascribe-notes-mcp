@@ -28,6 +28,31 @@ describe('Auth View', () => {
     expect(html).toContain("signIn('github')");
   });
 
+  it('loads the Supabase SDK from a version-pinned CDN URL with subresource integrity', () => {
+    const config: Config = {
+      port: 3000,
+      supabaseUrl: 'https://test.supabase.co',
+      supabaseServiceRoleKey: 'test-key',
+      supabaseAnonKey: 'anon-key',
+      publicUrl: 'http://localhost:3000',
+      serverVersion: '1.0.0',
+    };
+
+    const html = renderAuthPage(config);
+
+    // A floating @2 tag silently upgrades the SDK on every load — a page that breaks
+    // with zero repo changes. The pin + integrity make the dependency immutable; if the
+    // version is ever bumped, the hash must be recomputed or the browser refuses the script.
+    expect(html).toContain(
+      'src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.98.0/dist/umd/supabase.js"',
+    );
+    expect(html).toContain(
+      'integrity="sha384-NRo2jhGGHu91p1IOcVC3UWI5Vnd+xGXfD/8N7Hr9+aGTK0d/Pl0i+kUZsB/zIlrK"',
+    );
+    expect(html).toContain('crossorigin="anonymous"');
+    expect(html).not.toContain('supabase-js@2"');
+  });
+
   it('offers no cross-origin sign-in affordances', () => {
     const config: Config = {
       port: 3000,

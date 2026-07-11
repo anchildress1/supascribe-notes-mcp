@@ -358,7 +358,7 @@ export function renderAuthPage(config: Config): string {
     '  <head>',
     '    <title>Authorize App</title>',
     '    <meta name="viewport" content="width=device-width, initial-scale=1.0">',
-    '    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>',
+    '    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.98.0/dist/umd/supabase.js" integrity="sha384-NRo2jhGGHu91p1IOcVC3UWI5Vnd+xGXfD/8N7Hr9+aGTK0d/Pl0i+kUZsB/zIlrK" crossorigin="anonymous"></script>',
     '    <script>',
     '        // Global error handler',
     '        window.onerror = function(msg, url, line, col, error) {',
