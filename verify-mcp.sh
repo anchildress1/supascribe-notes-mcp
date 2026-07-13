@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# verify-mcp.sh - Verify Streamable HTTP MCP flow on /mcp
+# verify-mcp.sh - Verify Streamable HTTP MCP flow on the service root
 
 if [[ -z "$1" ]]; then
   echo "Usage: ./verify-mcp.sh <SUPABASE_ACCESS_TOKEN>"
@@ -16,7 +16,7 @@ if [[ -z "$1" ]]; then
 fi
 
 TOKEN=$1
-URL=${2:-"http://localhost:8080/mcp"}
+URL=${2:-"http://localhost:8080"}
 
 echo "Testing Streamable HTTP MCP flow against $URL..."
 echo "-------------------------------------------------"

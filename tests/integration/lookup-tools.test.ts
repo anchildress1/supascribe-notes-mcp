@@ -186,6 +186,20 @@ describe('Lookup Tools Integration', () => {
     expect(res.statusCode).toBe(401);
   });
 
+  it('serves the HTML 401 page for REST routes hit by a browser without auth', async () => {
+    // Confirms /api/* still uses the default (non-suppressHtml) auth instance —
+    // a copy-paste wiring mistake pointing it at mcpAuthenticate would pass
+    // "blocks lookup routes without auth" above but silently fail this one.
+    const { res } = await invokeApp(app, {
+      method: 'GET',
+      url: '/api/lookup-categories',
+      headers: { accept: 'text/html' },
+    });
+    expect(res.statusCode).toBe(401);
+    expect(res._getHeaders()['content-type']).toContain('text/html');
+    expect(res._getData()).toContain('<!DOCTYPE html>');
+  });
+
   it('returns lookup_card_by_id over REST', async () => {
     const { res } = await invokeApp(app, {
       method: 'POST',

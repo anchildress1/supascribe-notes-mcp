@@ -71,10 +71,10 @@ describe('Server Error Handling', () => {
     app = createApp(testConfig);
   });
 
-  it('POST /mcp initializes streamable transport and calls start exactly once', async () => {
+  it('POST / initializes streamable transport and calls start exactly once', async () => {
     const { res } = await invokeApp(app, {
       method: 'POST',
-      url: '/mcp',
+      url: '/',
       headers: {
         accept: 'application/json, text/event-stream',
         'content-type': 'application/json',
@@ -97,12 +97,12 @@ describe('Server Error Handling', () => {
     expect(mocks.handleRequest).toHaveBeenCalledTimes(1);
   });
 
-  it('POST /mcp returns 500 if transport start fails and closes transport', async () => {
+  it('POST / returns 500 if transport start fails and closes transport', async () => {
     mocks.start.mockRejectedValue(new Error('Failed to initialize session'));
 
     const { res } = await invokeApp(app, {
       method: 'POST',
-      url: '/mcp',
+      url: '/',
       headers: {
         accept: 'application/json, text/event-stream',
         'content-type': 'application/json',
@@ -129,12 +129,12 @@ describe('Server Error Handling', () => {
     expect(mocks.close).toHaveBeenCalledTimes(1);
   });
 
-  it('POST /mcp returns 404 for unknown session header', async () => {
+  it('POST / returns 404 for unknown session header', async () => {
     mocks.start.mockResolvedValue(undefined);
 
     const { res } = await invokeApp(app, {
       method: 'POST',
-      url: '/mcp',
+      url: '/',
       headers: {
         accept: 'application/json, text/event-stream',
         'content-type': 'application/json',

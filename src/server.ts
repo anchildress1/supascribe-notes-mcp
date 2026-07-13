@@ -148,19 +148,6 @@ export function createApp(config: Config): express.Express {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 
-  // Root endpoint - User facing help page
-  app.get('/', (req, res) => {
-    // Redirect to MCP endpoint if client prefers text/event-stream
-    // This helps MCP clients that are configured with the root URL
-    const preferred = req.accepts(['html', 'text/event-stream']);
-    if (preferred === 'text/event-stream') {
-      res.redirect(307, '/mcp');
-      return;
-    }
-
-    res.type('text/html').send(renderHelpPage());
-  });
-
   // OAuth Discovery Endpoint
   app.get('/.well-known/oauth-authorization-server', (req, res) => {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
@@ -190,6 +177,8 @@ export function createApp(config: Config): express.Express {
     });
   });
 
+  // Kept for MCP clients (e.g. ChatGPT) that still discover resource metadata
+  // at a /mcp-suffixed well-known path from before the MCP endpoint moved to '/'.
   app.get('/.well-known/oauth-protected-resource/mcp', (_req, res) => {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
     res.set('Pragma', 'no-cache');
@@ -214,6 +203,11 @@ export function createApp(config: Config): express.Express {
 
   // Auth Middleware
   const authenticate = createAuthMiddleware(authVerifier, config.publicUrl);
+  // MCP protocol traffic must always get a plain 401 + WWW-Authenticate challenge
+  // (never the browser-friendly HTML page) so clients can discover the OAuth flow.
+  const mcpAuthenticate = createAuthMiddleware(authVerifier, config.publicUrl, {
+    suppressHtml: true,
+  });
 
   // Store active streamable HTTP transports by MCP session ID.
   const transports = new Map<string, StreamableHTTPServerTransport>();
@@ -290,8 +284,27 @@ export function createApp(config: Config): express.Express {
     }
   };
 
-  // Streamable HTTP MCP endpoint.
-  app.all('/mcp', authenticate, handleMcpRequest);
+  // Root endpoint: serves the human-facing help page, or the Streamable HTTP
+  // MCP protocol endpoint, depending on what the client is asking for.
+  // mcpAuthenticate/handleMcpRequest are passed directly as route handlers
+  // (not invoked manually) so Express 5's built-in async-rejection handling
+  // still applies to them.
+  app.all(
+    '/',
+    (req, res, next) => {
+      const isMcpRequest =
+        req.method !== 'GET' || req.accepts(['html', 'text/event-stream']) === 'text/event-stream';
+
+      if (isMcpRequest) {
+        next();
+        return;
+      }
+
+      res.type('text/html').send(renderHelpPage());
+    },
+    mcpAuthenticate,
+    handleMcpRequest,
+  );
 
   // ChatGPT Apps Action: Write Cards
   app.post('/api/write-cards', authenticate, async (req, res) => {

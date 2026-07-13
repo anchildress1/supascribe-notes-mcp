@@ -136,14 +136,14 @@ curl -i -X POST \
   -H "Accept: application/json, text/event-stream" \
   -H "Content-Type: application/json" \
   --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"curl","version":"1.0.0"}}}' \
-  "$SERVICE_URL/mcp"
+  "$SERVICE_URL"
 ```
 
 The initialize response returns `Mcp-Session-Id` in response headers. Use that header on subsequent MCP requests.
 
 To fully test the MCP functionality, configure your MCP client to connect to the Streamable HTTP endpoint:
 
-- **URL**: `$SERVICE_URL/mcp`
+- **URL**: `$SERVICE_URL`
 - **Auth**: Use the standard OAuth 2.1 flow supported by your client, pointing to your Supabase project's auth endpoints.
 
 ## Card Shape
