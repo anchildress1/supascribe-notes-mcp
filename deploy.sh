@@ -168,17 +168,22 @@ echo "Cleaning up old revisions..."
 ACTIVE_REVISION=$(gcloud run services describe "$SERVICE_NAME" \
     --region "$REGION" --project "$PROJECT_ID" \
     --format='value(status.latestReadyRevisionName)')
-gcloud run revisions list \
-    --service "$SERVICE_NAME" \
-    --region "$REGION" \
-    --project "$PROJECT_ID" \
-    --format='value(metadata.name)' \
-    | grep -v "^${ACTIVE_REVISION}$" \
-    | while read -r rev; do
-        echo "  Deleting $rev..."
-        gcloud run revisions delete "$rev" \
-            --region "$REGION" --project "$PROJECT_ID" --quiet 2>&1 || true
-    done
+
+if [[ -z "$ACTIVE_REVISION" ]]; then
+    echo "  Could not determine the active revision — skipping cleanup to avoid deleting a serving revision." >&2
+else
+    gcloud run revisions list \
+        --service "$SERVICE_NAME" \
+        --region "$REGION" \
+        --project "$PROJECT_ID" \
+        --format='value(metadata.name)' \
+        | grep -Fvx "$ACTIVE_REVISION" \
+        | while read -r rev; do
+            echo "  Deleting $rev..."
+            gcloud run revisions delete "$rev" \
+                --region "$REGION" --project "$PROJECT_ID" --quiet 2>&1 || true
+        done
+fi
 
 echo ""
 echo "$DIVIDER"
