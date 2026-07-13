@@ -213,7 +213,18 @@ describe('MCP Server Integration', () => {
     expect(body.token_endpoint).toBe(`${testConfig.supabaseUrl}/auth/v1/oauth/token`);
   });
 
-  it('GET /.well-known/oauth-protected-resource/mcp returns specific metadata', async () => {
+  it('GET /.well-known/oauth-protected-resource returns metadata', async () => {
+    const { res } = await invokeApp(app, {
+      method: 'GET',
+      url: '/.well-known/oauth-protected-resource',
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res._getHeaders()['cache-control']).toContain('no-store');
+    const body = res._getJSON() as { resource: string };
+    expect(body.resource).toBe(testConfig.publicUrl);
+  });
+
+  it('GET /.well-known/oauth-protected-resource/mcp returns the same metadata (ChatGPT compat)', async () => {
     const { res } = await invokeApp(app, {
       method: 'GET',
       url: '/.well-known/oauth-protected-resource/mcp',
@@ -221,7 +232,7 @@ describe('MCP Server Integration', () => {
     expect(res.statusCode).toBe(200);
     expect(res._getHeaders()['cache-control']).toContain('no-store');
     const body = res._getJSON() as { resource: string };
-    expect(body.resource).toBe(testConfig.supabaseUrl);
+    expect(body.resource).toBe(testConfig.publicUrl);
   });
 
   it('Streamable client initializes successfully via root MCP endpoint', async () => {

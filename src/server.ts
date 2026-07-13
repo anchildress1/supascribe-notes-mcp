@@ -166,29 +166,20 @@ export function createApp(config: Config): express.Express {
   });
 
   // OAuth Protected Resource Metadata
-  app.get('/.well-known/oauth-protected-resource', (_req, res) => {
+  const sendProtectedResourceMetadata = (_req: express.Request, res: express.Response): void => {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
     res.set('Pragma', 'no-cache');
     res.json({
-      resource: config.supabaseUrl,
+      resource: config.publicUrl,
       authorization_servers: [`${config.supabaseUrl}/auth/v1`],
       scopes_supported: [],
       bearer_methods_supported: ['header'],
     });
-  });
-
+  };
+  app.get('/.well-known/oauth-protected-resource', sendProtectedResourceMetadata);
   // Kept for MCP clients (e.g. ChatGPT) that still discover resource metadata
   // at a /mcp-suffixed well-known path from before the MCP endpoint moved to '/'.
-  app.get('/.well-known/oauth-protected-resource/mcp', (_req, res) => {
-    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
-    res.set('Pragma', 'no-cache');
-    res.json({
-      resource: config.supabaseUrl,
-      authorization_servers: [`${config.supabaseUrl}/auth/v1`],
-      scopes_supported: [],
-      bearer_methods_supported: ['header'],
-    });
-  });
+  app.get('/.well-known/oauth-protected-resource/mcp', sendProtectedResourceMetadata);
 
   // Handle incorrect path appended by ChatGPT.
   // Only `authorization_id` (opaque alphanumeric token issued by Supabase — not a UUID)
