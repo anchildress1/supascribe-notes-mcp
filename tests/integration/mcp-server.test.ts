@@ -60,11 +60,12 @@ const hasForbiddenSchemaKey = (value: unknown): boolean => {
 const withConnectedStreamableClient = async (
   app: ReturnType<typeof createApp>,
   run: (context: { client: Client; transport: StreamableHTTPClientTransport }) => Promise<void>,
+  path = '/',
 ): Promise<void> => {
   const httpServer = createServer(app);
   await new Promise<void>((resolve) => httpServer.listen(0, resolve));
   const { port } = httpServer.address() as AddressInfo;
-  const url = new URL(`http://127.0.0.1:${port}/mcp`);
+  const url = new URL(`http://127.0.0.1:${port}${path}`);
 
   const transport = new StreamableHTTPClientTransport(url, {
     requestInit: {
@@ -110,14 +111,23 @@ describe('MCP Server Integration', () => {
     expect(text).toContain('<!DOCTYPE html>');
   });
 
-  it('GET / redirects to /mcp if Accept: text/event-stream', async () => {
+  it('HEAD / returns the help page unauthenticated, same as a browser GET', async () => {
+    // Express auto-serves HEAD through a GET handler, so this worked for free before
+    // the root route had to distinguish browsers from MCP clients. Uptime monitors and
+    // `curl -I $SERVICE_URL` send HEAD — they must not start getting a 401.
+    const { res } = await invokeApp(app, { method: 'HEAD', url: '/' });
+    expect(res.statusCode).toBe(200);
+    expect(res._getHeaders()['content-type']).toContain('text/html');
+  });
+
+  it('GET / is treated as an MCP request when Accept: text/event-stream (401 + challenge, no auth)', async () => {
     const { res } = await invokeApp(app, {
       method: 'GET',
       url: '/',
       headers: { accept: 'text/event-stream' },
     });
-    expect(res.statusCode).toBe(307);
-    expect(res._getHeaders().location).toBe('/mcp');
+    expect(res.statusCode).toBe(401);
+    expect(res._getHeaders()['www-authenticate']).toContain('Bearer');
   });
 
   it('GET /auth/authorize returns Consent UI', async () => {
@@ -132,17 +142,22 @@ describe('MCP Server Integration', () => {
 
   it.each([
     [
-      'redirects to /auth/authorize with valid UUID',
+      'redirects to /auth/authorize with valid UUID-shaped id',
       '/mcp/auth/authorize?authorization_id=550e8400-e29b-41d4-a716-446655440000',
       '/auth/authorize?authorization_id=550e8400-e29b-41d4-a716-446655440000',
     ],
     [
-      'strips non-UUID authorization_id',
+      'redirects to /auth/authorize with a real Supabase-shaped opaque token',
+      '/mcp/auth/authorize?authorization_id=42vmbzf3xo5bt3eeqre7rnonuqvtc2oz',
+      '/auth/authorize?authorization_id=42vmbzf3xo5bt3eeqre7rnonuqvtc2oz',
+    ],
+    [
+      'strips path-traversal authorization_id',
       '/mcp/auth/authorize?authorization_id=../../evil',
       '/auth/authorize',
     ],
     [
-      'strips unknown params and rejects non-UUID',
+      'strips unknown params and rejects too-short authorization_id',
       '/mcp/auth/authorize?authorization_id=123&redirect_uri=https://evil.com',
       '/auth/authorize',
     ],
@@ -156,25 +171,41 @@ describe('MCP Server Integration', () => {
     },
   );
 
-  it('GET /mcp returns 401 without auth', async () => {
+  it('GET / returns 401 with invalid auth', async () => {
     const { res } = await invokeApp(app, {
       method: 'GET',
-      url: '/mcp',
-      headers: { accept: 'text/event-stream' },
-    });
-    expect(res.statusCode).toBe(401);
-  });
-
-  it('GET /mcp returns 401 with invalid auth', async () => {
-    const { res } = await invokeApp(app, {
-      method: 'GET',
-      url: '/mcp',
+      url: '/',
       headers: {
         accept: 'text/event-stream',
         authorization: 'Bearer invalid-token',
       },
     });
     expect(res.statusCode).toBe(401);
+  });
+
+  it('DELETE / (session termination) is routed as an MCP request even without an event-stream Accept header', async () => {
+    // Proves the `req.method !== 'GET'` branch of isMcpRequest actually matters —
+    // without it, a DELETE with a plain/no Accept header would fall through to
+    // the HTML help page instead of MCP session teardown.
+    const { res } = await invokeApp(app, {
+      method: 'DELETE',
+      url: '/',
+      headers: { accept: 'text/html' },
+    });
+    expect(res.statusCode).toBe(401);
+    expect(res._getHeaders()['www-authenticate']).toContain('Bearer');
+  });
+
+  it('GET / with an Accept header that prefers neither html nor event-stream falls back to the help page', async () => {
+    // Documents current, intentional behavior for strict JSON-only clients:
+    // they get the help page (200 HTML), not an MCP response or an error.
+    const { res } = await invokeApp(app, {
+      method: 'GET',
+      url: '/',
+      headers: { accept: 'application/json' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res._getHeaders()['content-type']).toContain('text/html');
   });
 
   it('GET /.well-known/oauth-authorization-server returns metadata', async () => {
@@ -192,7 +223,18 @@ describe('MCP Server Integration', () => {
     expect(body.token_endpoint).toBe(`${testConfig.supabaseUrl}/auth/v1/oauth/token`);
   });
 
-  it('GET /.well-known/oauth-protected-resource/mcp returns specific metadata', async () => {
+  it('GET /.well-known/oauth-protected-resource returns metadata', async () => {
+    const { res } = await invokeApp(app, {
+      method: 'GET',
+      url: '/.well-known/oauth-protected-resource',
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res._getHeaders()['cache-control']).toContain('no-store');
+    const body = res._getJSON() as { resource: string };
+    expect(body.resource).toBe(testConfig.publicUrl);
+  });
+
+  it('GET /.well-known/oauth-protected-resource/mcp returns the same metadata (ChatGPT compat)', async () => {
     const { res } = await invokeApp(app, {
       method: 'GET',
       url: '/.well-known/oauth-protected-resource/mcp',
@@ -200,13 +242,26 @@ describe('MCP Server Integration', () => {
     expect(res.statusCode).toBe(200);
     expect(res._getHeaders()['cache-control']).toContain('no-store');
     const body = res._getJSON() as { resource: string };
-    expect(body.resource).toBe(testConfig.supabaseUrl);
+    expect(body.resource).toBe(testConfig.publicUrl);
   });
 
-  it('Streamable client initializes successfully via /mcp', async () => {
+  it('Streamable client initializes successfully via root MCP endpoint', async () => {
     await withConnectedStreamableClient(app, async ({ transport }) => {
       expect(transport.sessionId).toBeTruthy();
     });
+  });
+
+  it('Streamable client initializes successfully via the legacy /mcp URL (307 compat redirect)', async () => {
+    // Proves the /mcp -> / redirect actually works end-to-end for a real client, not
+    // just that it returns 307 — a 307 that a client doesn't follow, or that drops the
+    // POST body on the way, would still break every already-configured client.
+    await withConnectedStreamableClient(
+      app,
+      async ({ transport }) => {
+        expect(transport.sessionId).toBeTruthy();
+      },
+      '/mcp',
+    );
   });
 
   it('full MCP flow: streamable initialize → list tools', async () => {
@@ -297,10 +352,10 @@ describe('MCP Server Integration', () => {
     });
   });
 
-  it('POST /mcp returns 404 for unknown session header', async () => {
+  it('POST / returns 404 for unknown session header', async () => {
     const { res } = await invokeApp(app, {
       method: 'POST',
-      url: '/mcp',
+      url: '/',
       headers: {
         accept: 'application/json, text/event-stream',
         'content-type': 'application/json',

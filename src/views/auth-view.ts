@@ -1,5 +1,14 @@
 import type { Config } from '../config.js';
 
+// JSON.stringify escapes quotes/backslashes but not `<`, so a config value
+// containing "</script>" would prematurely close the inline <script> block
+// this gets embedded in. Escaping `<` after stringifying prevents that.
+const LT_UNICODE_ESCAPE = String.fromCodePoint(92) + 'u003c'; // '<', built to avoid literal backslash-u escapes in source
+
+function scriptSafeJson(value: string): string {
+  return JSON.stringify(value).replaceAll('<', LT_UNICODE_ESCAPE);
+}
+
 export function renderAuthPage(config: Config): string {
   const style = [
     'body { font-family: -apple-system, sans-serif; max-width: 400px; margin: 40px auto; padding: 20px; text-align: center; color: #333; }',
@@ -53,11 +62,7 @@ export function renderAuthPage(config: Config): string {
     '      return false;',
     '   }',
     '   try {',
-    "      supabaseClient = supabase.createClient('" +
-      config.supabaseUrl +
-      "', '" +
-      config.supabaseAnonKey +
-      "', {",
+    `      supabaseClient = supabase.createClient(${scriptSafeJson(config.supabaseUrl)}, ${scriptSafeJson(config.supabaseAnonKey)}, {`,
     '        auth: { debug: true }',
     '      });',
     "      log('Supabase client initialized.');",
@@ -103,13 +108,6 @@ export function renderAuthPage(config: Config): string {
     '',
     "  document.addEventListener('visibilitychange', () => {",
     "    if (document.visibilityState === 'visible' && !authResolved) init();",
-    '  });',
-    '',
-    "  window.addEventListener('storage', (event) => {",
-    "    if (!authResolved && event.key && event.key.includes('supabase.auth.token')) {",
-    "      log('Detected storage update for Supabase auth token; re-checking session...');",
-    '      init();',
-    '    }',
     '  });',
     '',
     '  authPollTimer = setInterval(() => {',
@@ -295,11 +293,6 @@ export function renderAuthPage(config: Config): string {
     '  }',
     '}',
     '',
-    'function refreshSession() {',
-    "  log('Manual session refresh requested.');",
-    '  init();',
-    '}',
-    '',
     'async function signOut() {',
     "   log('Signing out...');",
     '   await supabaseClient.auth.signOut();',
@@ -374,7 +367,7 @@ export function renderAuthPage(config: Config): string {
     '  <head>',
     '    <title>Authorize App</title>',
     '    <meta name="viewport" content="width=device-width, initial-scale=1.0">',
-    '    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>',
+    '    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.98.0/dist/umd/supabase.js" integrity="sha384-NRo2jhGGHu91p1IOcVC3UWI5Vnd+xGXfD/8N7Hr9+aGTK0d/Pl0i+kUZsB/zIlrK" crossorigin="anonymous"></script>',
     '    <script>',
     '        // Global error handler',
     '        window.onerror = function(msg, url, line, col, error) {',
@@ -405,8 +398,6 @@ export function renderAuthPage(config: Config): string {
     '        <input id="email-input" type="email" placeholder="Email" style="width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 4px; margin-bottom: 8px; box-sizing: border-box;">',
     '        <input id="password-input" type="password" placeholder="Password" style="width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 4px; margin-bottom: 8px; box-sizing: border-box;">',
     '        <button id="password-signin-btn" class="btn-primary" onclick="signInWithPassword()">Sign in with Email</button>',
-    '        <p style="margin: 0 0 14px; font-size: 13px; color: #666;">If no OAuth provider is configured here, sign in from another tab on this same origin. This page auto-detects new sessions.</p>',
-    '        <button class="btn-outline" onclick="refreshSession()">I signed in in another tab</button>',
     '        <button class="provider-btn" onclick="signIn(\'google\')">Sign in with Google</button>',
     '        <button class="provider-btn" onclick="signIn(\'github\')">Sign in with GitHub</button>',
     '      </div>',

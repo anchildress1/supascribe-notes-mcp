@@ -11,7 +11,21 @@ interface AuthenticatedRequest extends Request {
   };
 }
 
-export function createAuthMiddleware(authVerifier: SupabaseTokenVerifier, publicUrl: string) {
+export interface AuthMiddlewareOptions {
+  /**
+   * When true, never send the browser-friendly HTML 401 page — always send a
+   * plain-text 401 with a WWW-Authenticate challenge. Required for the MCP
+   * protocol endpoint, which must let clients discover the OAuth flow
+   * regardless of what Accept header they happen to send.
+   */
+  suppressHtml?: boolean;
+}
+
+export function createAuthMiddleware(
+  authVerifier: SupabaseTokenVerifier,
+  publicUrl: string,
+  options: AuthMiddlewareOptions = {},
+) {
   return async (req: Request, res: Response, next: NextFunction) => {
     const authHeader = req.headers.authorization;
     let token: string | undefined;
@@ -32,14 +46,11 @@ export function createAuthMiddleware(authVerifier: SupabaseTokenVerifier, public
     }
 
     if (!token) {
-      // Handle OAuth Redirect misconfiguration:
-      // If the user lands on ANY protected endpoint (like /mcp) with an authorization_id query param
-      // and accepts HTML, redirect them to the root / which handles the Auth UI.
-      // Redirect logic removed as it interferes with standard OAuth flow
-
-      // Check for browser navigation (AcceptHeader includes text/html)
-      // BUT exclude /mcp, which must return 401 + WWW-Authenticate for the client to handle it
-      if (req.accepts('html') && !req.originalUrl.includes('/mcp')) {
+      // Check for browser navigation (Accept header includes text/html).
+      // Callers that must always get a machine-readable 401 (e.g. the MCP
+      // protocol endpoint) pass suppressHtml so clients can discover the
+      // OAuth flow via the WWW-Authenticate challenge below.
+      if (req.accepts('html') && !options.suppressHtml) {
         res.status(401).type('text/html').send(`
           <!DOCTYPE html>
           <html>

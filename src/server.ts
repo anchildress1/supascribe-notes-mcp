@@ -148,19 +148,6 @@ export function createApp(config: Config): express.Express {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 
-  // Root endpoint - User facing help page
-  app.get('/', (req, res) => {
-    // Redirect to MCP endpoint if client prefers text/event-stream
-    // This helps MCP clients that are configured with the root URL
-    const preferred = req.accepts(['html', 'text/event-stream']);
-    if (preferred === 'text/event-stream') {
-      res.redirect(307, '/mcp');
-      return;
-    }
-
-    res.type('text/html').send(renderHelpPage());
-  });
-
   // OAuth Discovery Endpoint
   app.get('/.well-known/oauth-authorization-server', (req, res) => {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
@@ -179,40 +166,41 @@ export function createApp(config: Config): express.Express {
   });
 
   // OAuth Protected Resource Metadata
-  app.get('/.well-known/oauth-protected-resource', (_req, res) => {
+  const sendProtectedResourceMetadata = (_req: express.Request, res: express.Response): void => {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
     res.set('Pragma', 'no-cache');
     res.json({
-      resource: config.supabaseUrl,
+      resource: config.publicUrl,
       authorization_servers: [`${config.supabaseUrl}/auth/v1`],
       scopes_supported: [],
       bearer_methods_supported: ['header'],
     });
-  });
-
-  app.get('/.well-known/oauth-protected-resource/mcp', (_req, res) => {
-    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
-    res.set('Pragma', 'no-cache');
-    res.json({
-      resource: config.supabaseUrl,
-      authorization_servers: [`${config.supabaseUrl}/auth/v1`],
-      scopes_supported: [],
-      bearer_methods_supported: ['header'],
-    });
-  });
+  };
+  app.get('/.well-known/oauth-protected-resource', sendProtectedResourceMetadata);
+  // Kept for MCP clients (e.g. ChatGPT) that still discover resource metadata
+  // at a /mcp-suffixed well-known path from before the MCP endpoint moved to '/'.
+  app.get('/.well-known/oauth-protected-resource/mcp', sendProtectedResourceMetadata);
 
   // Handle incorrect path appended by ChatGPT.
-  // Only `authorization_id` (validated as UUID) is forwarded; all other params are dropped.
+  // Only `authorization_id` (opaque alphanumeric token issued by Supabase — not a UUID)
+  // is forwarded; all other params are dropped.
   app.get('/mcp/auth/authorize', (req, res) => {
     const raw = req.query['authorization_id'];
-    const UUID_RE = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
-    const authId = typeof raw === 'string' && UUID_RE.test(raw) ? raw : null;
-    const target = authId ? `/auth/authorize?authorization_id=${authId}` : '/auth/authorize';
+    const SAFE_TOKEN_RE = /^[\w-]{8,128}$/;
+    const authId = typeof raw === 'string' && SAFE_TOKEN_RE.test(raw) ? raw : null;
+    const target = authId
+      ? `/auth/authorize?authorization_id=${encodeURIComponent(authId)}`
+      : '/auth/authorize';
     res.redirect(307, target); // nosemgrep: javascript.express.web.tainted-redirect-express.tainted-redirect-express
   });
 
   // Auth Middleware
   const authenticate = createAuthMiddleware(authVerifier, config.publicUrl);
+  // MCP protocol traffic must always get a plain 401 + WWW-Authenticate challenge
+  // (never the browser-friendly HTML page) so clients can discover the OAuth flow.
+  const mcpAuthenticate = createAuthMiddleware(authVerifier, config.publicUrl, {
+    suppressHtml: true,
+  });
 
   // Store active streamable HTTP transports by MCP session ID.
   const transports = new Map<string, StreamableHTTPServerTransport>();
@@ -289,8 +277,40 @@ export function createApp(config: Config): express.Express {
     }
   };
 
-  // Streamable HTTP MCP endpoint.
-  app.all('/mcp', authenticate, handleMcpRequest);
+  // Root endpoint: serves the human-facing help page, or the Streamable HTTP
+  // MCP protocol endpoint, depending on what the client is asking for.
+  // mcpAuthenticate/handleMcpRequest are passed directly as route handlers
+  // (not invoked manually) so Express 5's built-in async-rejection handling
+  // still applies to them.
+  const routeRootByAccept = (
+    req: express.Request,
+    res: express.Response,
+    next: express.NextFunction,
+  ): void => {
+    // GET and HEAD are the methods a browser or health check ever sends unprompted;
+    // everything else (POST, DELETE, ...) is always MCP protocol traffic. Within
+    // GET/HEAD, only a client explicitly asking for an event stream is routed to MCP —
+    // a bare `curl -I` or uptime monitor must keep getting the public help page.
+    const isBrowserMethod = req.method === 'GET' || req.method === 'HEAD';
+    const isMcpRequest =
+      !isBrowserMethod || req.accepts(['html', 'text/event-stream']) === 'text/event-stream';
+
+    if (isMcpRequest) {
+      next();
+      return;
+    }
+
+    res.type('text/html').send(renderHelpPage());
+  };
+
+  app.all('/', routeRootByAccept, mcpAuthenticate, handleMcpRequest);
+
+  // Compat redirect for any client still configured with the pre-consolidation
+  // MCP URL. 307 preserves method and body, so a POST /mcp JSON-RPC call lands
+  // on the real handler above intact instead of a bare 404 the client can't parse.
+  app.all('/mcp', (_req, res) => {
+    res.redirect(307, '/');
+  });
 
   // ChatGPT Apps Action: Write Cards
   app.post('/api/write-cards', authenticate, async (req, res) => {

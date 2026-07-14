@@ -1,4 +1,4 @@
-.PHONY: install lint format test test-coverage secrets-scan ai-checks build clean dev
+.PHONY: install lint format test test-coverage secrets-scan ai-checks build clean dev deploy
 
 dev:
 
@@ -31,3 +31,6 @@ build:
 
 clean:
 	rm -rf dist coverage
+
+deploy:
+	./deploy.sh

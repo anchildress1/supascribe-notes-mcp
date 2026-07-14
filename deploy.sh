@@ -143,6 +143,7 @@ gcloud run deploy "$SERVICE_NAME" \
     --allow-unauthenticated \
     --port "$PORT" \
     --timeout=600 \
+    --max-instances=1 \
     --service-account "$SA_EMAIL" \
     --set-env-vars "$ENV_VARS" \
     --set-secrets "SUPABASE_SERVICE_ROLE_KEY=SUPABASE_SERVICE_ROLE_KEY:latest,SUPABASE_ANON_KEY=SUPABASE_ANON_KEY:latest"
@@ -159,8 +160,35 @@ if [[ -z "$EXISTING_URL" && -z "$PUBLIC_URL" ]]; then
         --update-env-vars "PUBLIC_URL=$NEW_URL"
 fi
 
-SERVICE_URL=$(gcloud run services describe "$SERVICE_NAME" \
-    --region "$REGION" --project "$PROJECT_ID" --format 'value(status.url)')
+read -r SERVICE_URL ACTIVE_REVISION < <(
+    gcloud run services describe "$SERVICE_NAME" \
+        --region "$REGION" --project "$PROJECT_ID" \
+        --format='value(status.url,status.latestReadyRevisionName)'
+)
+
+# Delete all revisions not currently serving traffic
+echo "Cleaning up old revisions..."
+
+if [[ -z "$ACTIVE_REVISION" ]]; then
+    echo "  Could not determine the active revision — skipping cleanup to avoid deleting a serving revision." >&2
+else
+    mapfile -t STALE_REVISIONS < <(
+        gcloud run revisions list \
+            --service "$SERVICE_NAME" \
+            --region "$REGION" \
+            --project "$PROJECT_ID" \
+            --format='value(metadata.name)' \
+            | grep -Fvx "$ACTIVE_REVISION"
+    )
+
+    if [[ ${#STALE_REVISIONS[@]} -eq 0 ]]; then
+        echo "  No stale revisions to delete."
+    else
+        echo "  Deleting ${#STALE_REVISIONS[@]} revision(s): ${STALE_REVISIONS[*]}"
+        gcloud run revisions delete "${STALE_REVISIONS[@]}" \
+            --region "$REGION" --project "$PROJECT_ID" --quiet 2>&1 || true
+    fi
+fi
 
 echo ""
 echo "$DIVIDER"
