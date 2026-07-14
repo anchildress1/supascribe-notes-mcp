@@ -3,8 +3,10 @@ import type { Config } from '../config.js';
 // JSON.stringify escapes quotes/backslashes but not `<`, so a config value
 // containing "</script>" would prematurely close the inline <script> block
 // this gets embedded in. Escaping `<` after stringifying prevents that.
+const LT_UNICODE_ESCAPE = String.fromCodePoint(92) + 'u003c'; // '<', built to avoid literal backslash-u escapes in source
+
 function scriptSafeJson(value: string): string {
-  return JSON.stringify(value).replace(/</g, '\\u003c');
+  return JSON.stringify(value).replaceAll('<', LT_UNICODE_ESCAPE);
 }
 
 export function renderAuthPage(config: Config): string {
