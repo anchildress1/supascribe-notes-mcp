@@ -60,11 +60,12 @@ const hasForbiddenSchemaKey = (value: unknown): boolean => {
 const withConnectedStreamableClient = async (
   app: ReturnType<typeof createApp>,
   run: (context: { client: Client; transport: StreamableHTTPClientTransport }) => Promise<void>,
+  path = '/',
 ): Promise<void> => {
   const httpServer = createServer(app);
   await new Promise<void>((resolve) => httpServer.listen(0, resolve));
   const { port } = httpServer.address() as AddressInfo;
-  const url = new URL(`http://127.0.0.1:${port}/`);
+  const url = new URL(`http://127.0.0.1:${port}${path}`);
 
   const transport = new StreamableHTTPClientTransport(url, {
     requestInit: {
@@ -108,6 +109,15 @@ describe('MCP Server Integration', () => {
     const text = res._getData();
     expect(text).toContain('Supabase MCP Server');
     expect(text).toContain('<!DOCTYPE html>');
+  });
+
+  it('HEAD / returns the help page unauthenticated, same as a browser GET', async () => {
+    // Express auto-serves HEAD through a GET handler, so this worked for free before
+    // the root route had to distinguish browsers from MCP clients. Uptime monitors and
+    // `curl -I $SERVICE_URL` send HEAD — they must not start getting a 401.
+    const { res } = await invokeApp(app, { method: 'HEAD', url: '/' });
+    expect(res.statusCode).toBe(200);
+    expect(res._getHeaders()['content-type']).toContain('text/html');
   });
 
   it('GET / is treated as an MCP request when Accept: text/event-stream (401 + challenge, no auth)', async () => {
@@ -239,6 +249,19 @@ describe('MCP Server Integration', () => {
     await withConnectedStreamableClient(app, async ({ transport }) => {
       expect(transport.sessionId).toBeTruthy();
     });
+  });
+
+  it('Streamable client initializes successfully via the legacy /mcp URL (307 compat redirect)', async () => {
+    // Proves the /mcp -> / redirect actually works end-to-end for a real client, not
+    // just that it returns 307 — a 307 that a client doesn't follow, or that drops the
+    // POST body on the way, would still break every already-configured client.
+    await withConnectedStreamableClient(
+      app,
+      async ({ transport }) => {
+        expect(transport.sessionId).toBeTruthy();
+      },
+      '/mcp',
+    );
   });
 
   it('full MCP flow: streamable initialize → list tools', async () => {

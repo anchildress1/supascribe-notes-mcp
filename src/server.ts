@@ -282,22 +282,35 @@ export function createApp(config: Config): express.Express {
   // mcpAuthenticate/handleMcpRequest are passed directly as route handlers
   // (not invoked manually) so Express 5's built-in async-rejection handling
   // still applies to them.
-  app.all(
-    '/',
-    (req, res, next) => {
-      const isMcpRequest =
-        req.method !== 'GET' || req.accepts(['html', 'text/event-stream']) === 'text/event-stream';
+  const routeRootByAccept = (
+    req: express.Request,
+    res: express.Response,
+    next: express.NextFunction,
+  ): void => {
+    // GET and HEAD are the methods a browser or health check ever sends unprompted;
+    // everything else (POST, DELETE, ...) is always MCP protocol traffic. Within
+    // GET/HEAD, only a client explicitly asking for an event stream is routed to MCP —
+    // a bare `curl -I` or uptime monitor must keep getting the public help page.
+    const isBrowserMethod = req.method === 'GET' || req.method === 'HEAD';
+    const isMcpRequest =
+      !isBrowserMethod || req.accepts(['html', 'text/event-stream']) === 'text/event-stream';
 
-      if (isMcpRequest) {
-        next();
-        return;
-      }
+    if (isMcpRequest) {
+      next();
+      return;
+    }
 
-      res.type('text/html').send(renderHelpPage());
-    },
-    mcpAuthenticate,
-    handleMcpRequest,
-  );
+    res.type('text/html').send(renderHelpPage());
+  };
+
+  app.all('/', routeRootByAccept, mcpAuthenticate, handleMcpRequest);
+
+  // Compat redirect for any client still configured with the pre-consolidation
+  // MCP URL. 307 preserves method and body, so a POST /mcp JSON-RPC call lands
+  // on the real handler above intact instead of a bare 404 the client can't parse.
+  app.all('/mcp', (_req, res) => {
+    res.redirect(307, '/');
+  });
 
   // ChatGPT Apps Action: Write Cards
   app.post('/api/write-cards', authenticate, async (req, res) => {
