@@ -1,5 +1,12 @@
 import type { Config } from '../config.js';
 
+// JSON.stringify escapes quotes/backslashes but not `<`, so a config value
+// containing "</script>" would prematurely close the inline <script> block
+// this gets embedded in. Escaping `<` after stringifying prevents that.
+function scriptSafeJson(value: string): string {
+  return JSON.stringify(value).replace(/</g, '\\u003c');
+}
+
 export function renderAuthPage(config: Config): string {
   const style = [
     'body { font-family: -apple-system, sans-serif; max-width: 400px; margin: 40px auto; padding: 20px; text-align: center; color: #333; }',
@@ -53,7 +60,7 @@ export function renderAuthPage(config: Config): string {
     '      return false;',
     '   }',
     '   try {',
-    `      supabaseClient = supabase.createClient(${JSON.stringify(config.supabaseUrl)}, ${JSON.stringify(config.supabaseAnonKey)}, {`,
+    `      supabaseClient = supabase.createClient(${scriptSafeJson(config.supabaseUrl)}, ${scriptSafeJson(config.supabaseAnonKey)}, {`,
     '        auth: { debug: true }',
     '      });',
     "      log('Supabase client initialized.');",

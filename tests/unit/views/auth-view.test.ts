@@ -95,4 +95,30 @@ describe('Auth View', () => {
     // validity only, no code-execution surface.
     expect(() => new Script(dynamicScript as string)).not.toThrow();
   });
+
+  it('escapes a literal </script> in a config value instead of letting it close the script tag early', () => {
+    const config: Config = {
+      port: 3000,
+      supabaseUrl: 'https://test.supabase.co',
+      supabaseServiceRoleKey: 'test-key',
+      // JSON.stringify escapes quotes/backslashes but not `<` — an unescaped
+      // "</script>" here would terminate the real script tag early and let the
+      // rest of the string render as raw HTML/script in the page.
+      supabaseAnonKey: '</script><script>alert(1)</script>',
+      publicUrl: 'http://localhost:3000',
+      serverVersion: '1.0.0',
+    };
+
+    const html = renderAuthPage(config);
+
+    expect(html).not.toContain('</script><script>alert(1)</script>');
+    // Only `<` needs escaping — the HTML tokenizer recognizes a closing tag by the
+    // `</` sequence, so breaking just that is sufficient; `>` is left as-is.
+    expect(html).toContain('\\u003c/script>\\u003cscript>alert(1)\\u003c/script>');
+
+    const scriptBlocks = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)];
+    const dynamicScript = scriptBlocks.at(-1)?.[1];
+    expect(dynamicScript).toBeDefined();
+    expect(() => new Script(dynamicScript as string)).not.toThrow();
+  });
 });
