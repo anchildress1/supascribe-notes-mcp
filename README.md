@@ -14,6 +14,18 @@ A TypeScript MCP server that writes index cards to Supabase, deployed on Google 
 | `lookup_tags`       | Get all unique lvl0/lvl1 tags used across active cards              |
 | `search_cards`      | Keyword search by category/tag/project/fact (excludes soft-deleted) |
 
+## Tech Stack
+
+| Layer         | Tools                                                                        |
+| ------------- | ---------------------------------------------------------------------------- |
+| Runtime       | Node.js 22, TypeScript, Express 5                                            |
+| MCP & AI      | `@modelcontextprotocol/sdk`, OpenAI SDK                                      |
+| Data          | Supabase (`@supabase/supabase-js`), Zod validation                           |
+| Logging       | Pino                                                                         |
+| Testing       | Vitest, `@vitest/coverage-v8`                                                |
+| Quality Gates | ESLint, Prettier, Lefthook, Commitlint + `commitlint-plugin-rai`, secretlint |
+| Infra & CI/CD | Google Cloud Run, GitHub Actions, Release Please                             |
+
 ## Architecture
 
 ![Sequence Diagram](docs/images/architecture-sequence-diagram.png)
@@ -172,6 +184,17 @@ To fully test the MCP functionality, configure your MCP client to connect to the
 - **Commitlint + rai-lint** — enforces AI attribution footers
 - **Lefthook** — git hooks for commit message validation
 
+## Security
+
+- **OAuth-gated for MCP + API calls.** MCP protocol requests (to `/` when negotiated as MCP) and `/api/*` endpoints require a Supabase-issued Bearer token; missing/invalid tokens return a 401 + `WWW-Authenticate` challenge (MCP always returns a plain-text 401). Browser-facing routes (help page, `/auth/authorize`, `/health`, `/openapi.json`, and `/.well-known/*`) are intentionally public.
+- **Input handled like it's hostile.** `authorization_id` is regex-constrained to a safe token shape and URL-encoded before it's ever interpolated into a redirect. Config values injected into the consent page's inline script are escaped against `</script>` breakout.
+- **RLS enforced at the database.** Row-Level Security stays on for every table — see [Database Schema](#database-schema) before touching policies.
+- **No secrets in the repo.** `secretlint` runs in CI and via Lefthook's pre-commit hook, before a commit ever lands.
+
 ## License
 
 PolyForm Shield 1.0.0
+
+## Author
+
+**Ashley Childress** — [GitHub](https://github.com/anchildress1) · [LinkedIn](https://linkedin.com/in/anchildress1) · [DEV.to](https://dev.to/anchildress1)
