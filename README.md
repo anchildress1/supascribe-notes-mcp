@@ -186,7 +186,7 @@ To fully test the MCP functionality, configure your MCP client to connect to the
 
 ## Security
 
-- **OAuth-gated everywhere.** Every MCP and REST endpoint requires a valid Supabase-issued Bearer token; a missing or invalid token always gets a plain 401 + `WWW-Authenticate` challenge — never a silent redirect — so clients can discover the OAuth flow.
+- **OAuth-gated for MCP + API calls.** MCP protocol requests (to `/` when negotiated as MCP) and `/api/*` endpoints require a Supabase-issued Bearer token; missing/invalid tokens return a 401 + `WWW-Authenticate` challenge (MCP always returns a plain-text 401). Browser-facing routes (help page, `/auth/authorize`, `/health`, `/openapi.json`, and `/.well-known/*`) are intentionally public.
 - **Input handled like it's hostile.** `authorization_id` is regex-constrained to a safe token shape and URL-encoded before it's ever interpolated into a redirect. Config values injected into the consent page's inline script are escaped against `</script>` breakout.
 - **RLS enforced at the database.** Row-Level Security stays on for every table — see [Database Schema](#database-schema) before touching policies.
 - **No secrets in the repo.** `secretlint` runs in CI and via Lefthook's pre-commit hook, before a commit ever lands.
