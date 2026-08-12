@@ -97,8 +97,13 @@ describe('CardInputSchema', () => {
     expect(() => CardInputSchema.parse({ ...validCard, signal: 0 })).toThrow();
   });
 
-  it('rejects signal above 5', () => {
-    expect(() => CardInputSchema.parse({ ...validCard, signal: 6 })).toThrow();
+  it('rejects signal above 10', () => {
+    expect(() => CardInputSchema.parse({ ...validCard, signal: 11 })).toThrow();
+  });
+
+  it('accepts signal of 10', () => {
+    const result = CardInputSchema.parse({ ...validCard, signal: 10 });
+    expect(result.signal).toBe(10);
   });
 
   it('rejects non-integer signal', () => {

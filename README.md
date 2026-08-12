@@ -170,7 +170,7 @@ To fully test the MCP functionality, configure your MCP client to connect to the
   "tags": { "lvl0": ["string"], "lvl1": ["string"] }, // both arrays are required (use [] when empty)
   "projects": ["string"],
   "category": "string (required)",
-  "signal": "number 1–5 (required)",
+  "signal": "number 1–10 (required)",
   "created_at": "timestamptz (optional input for historical imports; normalized on write)",
   "updated_at": "timestamptz (auto)",
   "deleted_at": "timestamptz (optional soft-delete timestamp; omit to leave deletion status unchanged)"
