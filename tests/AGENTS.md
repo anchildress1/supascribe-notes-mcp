@@ -1,48 +1,20 @@
 # Test Conventions — supascribe-notes-mcp
 
-These rules supplement the global `test-writer` skill. They define codebase-specific
-patterns that every test in this repo must follow. Read this file alongside the skill
-before writing or modifying any test.
+Supplements the global `test-writer` skill with this repo's specific patterns.
 
 ---
 
-## Stack
+## Coverage
 
-- **Framework:** Vitest v3 (`npm test`)
-- **Coverage provider:** V8, thresholds at **85%** lines / functions / branches / statements (per file)
-- **Config:** `vitest.config.ts` — never modify thresholds or the include list without explicit user direction
-- **Coverage scope:** explicit `coverage.include` allowlist — only these files are measured:
-  - `src/config.ts`
-  - `src/lib/auth-provider.ts`
-  - `src/middleware/auth.ts`
-  - `src/schemas/card.ts`
-  - `src/tools/lookup-tools.ts`
-  - `src/tools/write-cards.ts`
+`vitest.config.ts` sets an explicit `coverage.include` allowlist at 85%
+(lines/functions/branches/statements per file) — only listed files are measured. Never
+modify the threshold or the include list without explicit user direction.
 
 ---
 
-## Directory Layout
+## Test Layout
 
-```
-tests/
-  unit/
-    config.test.ts
-    server-errors.test.ts
-    server-schema.test.ts
-    cors.test.ts
-    lib/          ← tests for src/lib/*
-    middleware/   ← tests for src/middleware/*
-    schemas/      ← tests for src/schemas/*
-    tools/        ← tests for src/tools/*
-    views/        ← tests for src/views/*
-  integration/
-    lookup-tools.test.ts
-    mcp-server.test.ts
-  helpers/
-    http.ts       ← invokeApp, createMockRequest, createMockResponse
-```
-
-Unit tests live in `tests/unit/` mirroring `src/`. Integration tests live in
+Unit tests mirror `src/` under `tests/unit/`; integration tests live in
 `tests/integration/`. Never put integration logic in a unit test file or vice versa.
 
 ---
@@ -82,33 +54,21 @@ const createQueryMock = (initialValue: unknown): QueryMock => { ... };
 ```
 
 **Critical:** whenever the source code adds a new chain method (e.g., `.is()` for
-`deleted_at`), add it to this mock immediately. Never work around a missing method
-with a type cast.
+`deleted_at`), add it to this mock immediately. Never work around a missing method with
+a type cast.
 
 See `tests/unit/tools/lookup-tools.test.ts` for the canonical implementation.
 
 ### Pattern C — Module Mock + Query Builder (integration tests)
 
 Integration tests use `vi.mock('../../src/lib/supabase.js', ...)` at the module level.
-The cards query builder in integration tests implements **real in-memory filter logic** —
-not no-op stubs — so request-level assertions are meaningful.
-
-```typescript
-vi.mock('../../src/lib/supabase.js', () => ({
-  createSupabaseClient: vi.fn().mockReturnValue({
-    from: vi.fn().mockImplementation((table: string) => { ... }),
-    auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { ... } }, error: null }) },
-  }),
-}));
-```
+The cards query builder implements **real in-memory filter logic** — not no-op stubs —
+so request-level assertions are meaningful.
 
 **Every filter method the source code calls must actually filter the in-memory `result`
 array.** A method that just returns `queryBuilder` without mutating `result` makes
-integration assertions meaningless — tests will pass regardless of whether the filtering
-code is correct or even present.
-
-When the source code adds a new chain method (e.g., `.is('deleted_at', null)`), the
-integration mock must filter accordingly:
+integration assertions meaningless — tests pass whether or not the filtering code is
+correct or even present.
 
 ```typescript
 is: vi.fn().mockImplementation((col: string, val: unknown) => {
@@ -124,42 +84,19 @@ See `tests/integration/lookup-tools.test.ts` for the canonical implementation.
 ### Fixture Coverage for State Variants
 
 When a feature has distinct record states (e.g., active vs. soft-deleted), the fixture
-set must contain at least one record in **each** state. Tests must then assert:
+set must contain at least one record in **each** state, and tests must assert both:
 
-1. The default path **excludes** the non-default state (e.g., deleted cards hidden)
-2. The opt-in path **includes** it (e.g., `include_deleted: true` returns deleted cards)
+1. The default path **excludes** the non-default state
+2. The opt-in path **includes** it
 
-A test that only exercises one state proves nothing about the other. If all fixtures are
-in the default state, a bug that skips filtering entirely will still pass every assertion.
+A test that only exercises one state proves nothing about the other — if every fixture
+is in the default state, a bug that skips filtering entirely still passes.
 
 ---
 
-## Integration Test Boilerplate
+## Integration Tests
 
-Every integration test file needs this shape:
-
-```typescript
-const authHeaders = { authorization: 'Bearer test-token' };
-
-const testConfig: Config = {
-  supabaseUrl: 'http://localhost:54321',
-  supabaseServiceRoleKey: 'test-key',
-  supabaseAnonKey: 'anon-key',
-  port: 0,
-  publicUrl: 'http://localhost:0',
-  serverVersion: '1.0.0',
-};
-
-describe('Feature Integration', () => {
-  let app: ReturnType<typeof createApp>;
-  beforeAll(async () => {
-    app = createApp(testConfig);
-  });
-  // ...
-});
-```
-
-Every authenticated route must have tests for all three cases:
+Every authenticated route needs tests for all three cases:
 
 1. No auth → 401
 2. Valid auth + invalid body → 400 with `{ error: 'Validation failed' }`
