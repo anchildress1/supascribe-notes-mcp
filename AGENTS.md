@@ -53,7 +53,7 @@ relevant one whenever you work in that area.
 
 ## Supabase Migrations
 
-Apply migrations via the Supabase MCP tool (`mcp__plugin_supabase_supabase__apply_migration`), not `supabase db push`. Project ID: `stzewoyiciyxugwkxgwf`.
+Apply migrations via the Supabase MCP tool (`mcp__supabase__apply_migration`), not `supabase db push`. Project ID: `stzewoyiciyxugwkxgwf`. See [`supabase/AGENTS.md`](supabase/AGENTS.md) for the full workflow and shared-tenancy note.
 
 ---
 
