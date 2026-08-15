@@ -512,10 +512,11 @@ corrupts it silently.
 
 > **Fetch, then echo. Never re-author a field you are not deliberately changing.**
 
-Copy `title`, `blurb`, `fact`, `tags`, `category`, `projects`, `created_at`
-verbatim from a `lookup_card_by_id` result returned **this session**. Change only
-the target field. Never reconstruct from memory, a summary, an earlier message,
-or a subagent report. Not fetched this session → fetch again.
+Copy `title`, `blurb`, `fact`, `tags`, `category`, `projects`, `url`,
+`created_at` verbatim from a `lookup_card_by_id` result returned **this
+session**. Change only the target field. Never reconstruct from memory, a
+summary, an earlier message, or a subagent report. Not fetched this session →
+fetch again.
 
 Bulk rescore or delete:
 
@@ -523,7 +524,9 @@ Bulk rescore or delete:
 2. Show each `objectID`, title, exact field change. Unchanged titles and blurbs
    are payload, not proposals — no redraft, no re-approval.
 3. Write in batches ≤50.
-4. Report values read back, not values intended.
+4. Report values read back, not values intended. For a delete, the read-back
+   call must pass `include_deleted: true` — the default lookup excludes the
+   row it just soft-deleted.
 
 Cannot assemble from fresh records → stop and say so.
 
