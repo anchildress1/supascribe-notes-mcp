@@ -75,9 +75,9 @@ export const CardInputSchema = z.object({
   signal: z
     .number()
     .int()
-    .min(1, 'signal must be between 1 and 5')
-    .max(5, 'signal must be between 1 and 5')
-    .describe('Relevance score or importance signal, from 1 (low) to 5 (high).'),
+    .min(1, 'signal must be between 1 and 10')
+    .max(10, 'signal must be between 1 and 10')
+    .describe('Relevance score or importance signal, from 1 (low) to 10 (high).'),
   created_at: optionalTimestamp('created_at').describe(
     'Optional historical creation timestamp. If provided, it will be normalized to ISO-8601 UTC before upsert.',
   ),
