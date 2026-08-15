@@ -23,10 +23,11 @@ A card that duplicates either one is dead weight even when it is true.
 Do not call `write_cards` unless ALL are true:
 
 1. Pre-flight (§1) ran this session.
-2. Every proposed title and blurb was shown in chat and the user confirmed.
+2. Every new or changed title and blurb was shown in chat and the user confirmed.
 3. Every category exists in `lookup_categories` output.
 4. Every lvl0/lvl1 tag exists in `lookup_tags` output.
-5. Every card passes the decision test (§2) and the fact constraints (§3.4).
+5. Every card passes the decision test or an explicit non-decision exception
+   (§2.1–§2.2), plus the fact constraints (§3.4).
 6. No card names its own principle (§3.5).
 
 Never call `write_cards` during an audit. Audits report; the user decides.
@@ -45,9 +46,33 @@ search_cards(...)    → 5-10 existing cards per target category, for calibratio
 If the project key is absent: **stop and ask.** Never invent one.
 If a needed tag is absent: **surface it and stop.** Never invent one.
 
-`search_cards` may return soft-deleted rows. Discard any card where
-`deleted_at` is non-null — from calibration samples, duplicate checks, and audits
-alike. Treat them as nonexistent.
+### 1.1 Uniqueness
+
+**MCP only. No SQL, no DDL, no migrations — ever.**
+
+Server enforces `UNIQUE` on `title`, `blurb`, `fact`. Soft-deleted cards keep
+those values reserved while being invisible to search.
+
+| Check                 | Method                                        | Result                              |
+| --------------------- | --------------------------------------------- | ----------------------------------- |
+| Within batch          | Pairwise compare all three fields             | Reliable                            |
+| Against live cards    | `search_cards` on the most distinctive phrase | Loose — read hits, don't trust zero |
+| Against deleted cards | None available                                | **Blind spot**                      |
+
+On an update, same-`objectID` match is expected; different `objectID` is a
+collision.
+
+Blind spot mitigation: when a value reuses phrasing that may have existed before
+(rewrite of a deleted card, recycled title, boilerplate), **write one card per
+call.** A failed single write is an unambiguous collision. A failed batch may be
+partially written — re-read every card in it before retrying.
+
+Surface collisions. Never paraphrase to evade the constraint. Never mutate the
+matching card without confirmation. State plainly that deleted-card collisions
+were unchecked; never imply otherwise.
+
+Gap closes when an MCP tool does exact-match on `title`/`blurb`/`fact` including
+deleted rows.
 
 ---
 
@@ -121,7 +146,7 @@ Borderline cases: surface them. Never silently include.
 
 ### 3.0 The three slots
 
-Every card carries a fork, a call, and a cost.
+Every decision card carries a fork, a call, and a cost.
 
 | Slot         | Question                                              |
 | ------------ | ----------------------------------------------------- |
@@ -129,9 +154,10 @@ Every card carries a fork, a call, and a cost.
 | **The call** | Which way she went                                    |
 | **The cost** | What the other option would have cost, or why it lost |
 
-**No fork means no card.** That is not a formatting preference — it is the
-filter in §2 restated in a form that can be checked sentence by sentence. If the
-fork has to be invented to make the card work, there was no decision.
+**No fork means no decision card.** That is not a formatting preference — it is
+the decision filter in §2 restated in a form that can be checked sentence by
+sentence. If the fork has to be invented, do not invent it. Status notes (§2.1)
+and the explicit non-decision exceptions in §2.2 do not require these slots.
 
 "Cost" here means _why the rejected path lost_, not what the chosen path cost
 her. It is the reason, expressed as a comparison, and it usually already lives in
@@ -159,15 +185,17 @@ Reject:
 
 ### 3.2 Blurb
 
-One sentence, 10–15 words, restating the **decision** — using the same words the
-title uses, not synonyms.
+One sentence, 10–15 words, restating the title's **claim** — using the same words
+the title uses, not synonyms. For a decision card, that claim is the decision.
+For a non-decision exception, it is the concrete experience or status; never
+invent a decision to fill the field.
 
 This is not style. `blurb` is a searchable attribute weighted `ordered`, so early
 words carry more weight and a paraphrase into different vocabulary throws away
 match surface for no gain.
 
 Reject: two sentences, parentheticals, differentiator or moat vocabulary,
-restating the fact instead of the decision.
+restating fact details instead of the title's claim.
 
 ### 3.3 What the index actually reads
 
@@ -204,7 +232,8 @@ single word ("difficult" vs "hard") purely to satisfy the index. Never treat
 - **30–50 words. Under 30 is a reject, not a short card.** A fact too thin to
   stand alone tells a stranger nothing.
 - 1–3 sentences. Claim → reasoning → stop.
-- A fourth sentence means two cards are bundled. Split them.
+- Four sentences violate the shape. Condense when they support one claim; split
+  only when the extra sentence introduces an independent claim.
 - First person. A fact with no `I` in it is usually describing a system instead
   of a decision — check it against §2 before keeping it.
 - Never third person. "Ashley reframed it", "the author is a perfectionist" —
@@ -232,8 +261,9 @@ Reject — system voice, no decision:
 
 ### 3.5 The virtue rule
 
-**A fact states the decision and why the alternative lost. It does not name the
-abstract virtue the decision embodies.**
+**A decision-card fact states the decision and why the alternative lost. An
+explicit non-decision exception states the evidence that qualifies it under §2.1
+or §2.2. Neither names an abstract virtue or invents an alternative.**
 
 Naming the virtue does the reader's thinking for them. It converts evidence into
 a label, and a labelled card carries no more information than its tag already
@@ -257,7 +287,9 @@ label.
 
 ### 3.6 Voice
 
-First person, past tense. Engineering self-reflection, not pitch.
+Decision and fact-of-experience cards use first person and past tense. Status
+notes use first person and the tense required to state the current status
+truthfully. Engineering self-reflection, not pitch.
 
 Match:
 
@@ -282,8 +314,10 @@ registry sites, DEV announcement posts. Otherwise the claim carries itself.
 
 ## 4. Atomicity and repetition
 
-One claim per card. Decision + rationale + rejected alternative + architectural
-footnote is three or four cards. **Default to splitting.**
+One claim per card. A decision, its rationale, and its rejected alternative are
+one claim and belong together. Split an independent second decision or an
+architectural footnote that makes a separate claim. **Default to splitting only
+when the takeaways remain independently useful.**
 
 ### 4.1 Duplication is directional
 
@@ -446,8 +480,8 @@ the registry has a matching Issuer tag, apply it.
 2. List candidate atomic claims as short titles. **Confirm which to write.**
    Expect the user to cut; they usually want fewer than proposed.
 3. Confirm the project key. If new, ask for the name verbatim.
-4. Draft titles + blurbs **in chat**. Voice problems are cheap to catch here and
-   expensive after a batch write.
+4. Draft new or changed titles + blurbs **in chat**. Voice problems are cheap to
+   catch here and expensive after a batch write.
 5. Call `write_cards` only after explicit confirmation. Typical batch ≤ 8;
    schema permits 50.
 6. Report returned IDs.
@@ -458,24 +492,43 @@ the registry has a matching Issuer tag, apply it.
 on every write. Fetch the full record first and resend every field. Omitting one
 does not preserve it.
 
+For metadata-only updates, show each `objectID`, title, and exact metadata change
+for confirmation. Unchanged titles and blurbs are required payload, not new
+proposals; preserve them exactly without redrafting or separate reapproval.
+
 **Never trust a UUID that was not returned by a tool call in this session.**
 UUIDs relayed through summaries or subagents get corrupted. If a lookup returns
 fewer cards than requested, find the missing one by content search rather than
 retrying the ID.
 
-### 9.2 Bulk metadata changes
+### 9.2 Bulk changes — signal, tags, deletion
 
-For changes touching only `signal`, `deleted_at`, or tags across many cards,
-prefer direct SQL over `write_cards`. `write_cards` requires resending every
-field, which means retyping dozens of facts by hand — and a single transcription
-slip silently corrupts content. A SQL update touching one column cannot.
+**All via `write_cards`.** Validation for tags, categories, signal range, and
+field shape lives in the application layer. Anything routed around the MCP skips
+it, and skips `card_revisions` — the only history the corpus has.
 
-The tradeoff is real and must be stated to the user before doing it: SQL bypasses
-`card_revisions`, so bulk changes leave no audit trail.
+`write_cards` requires the full record, which creates one hazard: retyping a fact
+corrupts it silently.
 
-**Never apply DDL without asking.** Migrations are managed in a repository. A
-schema change applied directly to the remote database desynchronizes the repo and
-must be hand-reconciled with a matching migration file.
+> **Fetch, then echo. Never re-author a field you are not deliberately changing.**
+
+Copy `title`, `blurb`, `fact`, `tags`, `category`, `projects`, `created_at`
+verbatim from a `lookup_card_by_id` result returned **this session**. Change only
+the target field. Never reconstruct from memory, a summary, an earlier message,
+or a subagent report. Not fetched this session → fetch again.
+
+Bulk rescore or delete:
+
+1. Fetch full records.
+2. Show each `objectID`, title, exact field change. Unchanged titles and blurbs
+   are payload, not proposals — no redraft, no re-approval.
+3. Write in batches ≤50.
+4. Report values read back, not values intended.
+
+Cannot assemble from fresh records → stop and say so.
+
+Schema rejects a card (signal out of range, tag absent) → report the constraint
+and stop. Never alter the database to make a card fit.
 
 ### 9.3 Deleting
 
@@ -554,17 +607,20 @@ reversal. These are frequently better documented than the index is.
 - Third-person references to Ashley
 - Bundled multi-claim cards
 - Inventing categories or tags absent from the registry
-- Calling `write_cards` without title/blurb confirmation in chat
+- Calling `write_cards` with a new or changed title/blurb that was not confirmed
+  in chat
 - Drafting from rule docs instead of chat history
 - Describing HOW a domain works instead of WHAT was decided and WHY
 - Workflow restatements with no judgment behind them
 - Slogan-shaped titles with abstract restraint claims and no decision body
-- Including soft-deleted cards in samples, duplicate checks, or audits
+- Including soft-deleted cards in samples or audits, or ignoring their reserved
+  values during duplicate checks
 - **Naming the virtue instead of stating the decision** (§3.5)
 - **Defaulting to `Principle > Restraint`** without testing the alternatives (§8.1)
 - **Calling a card false when it was true on the date it was written** (§5)
 - **Demoting a card for repeating a claim made under a different project** (§4.1)
 - **Treating cards as a resume or a blog summary** — both live elsewhere
 - **Editing a changed decision in place** instead of writing a new card (§5.1)
-- **Applying DDL without asking** — migrations live in a repo (§9.2)
+- **Using direct SQL or DDL for anything** — MCP only (§1.1, §9.2)
+- **Re-authoring a field instead of echoing the fetched value** (§9.2)
 - **Reporting deletes as done** before the Algolia push has run (§9.3)
