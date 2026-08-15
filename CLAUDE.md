@@ -1,1 +1,2 @@
-Read AGENTS.md before making any change to this codebase.
+Refer to @AGENTS.md when working with this repo.
+Refer to @supabase/AGENTS.md for database instructions.
