@@ -1,4 +1,9 @@
-# PolyForm Shield License 1.0.0
+# PolyForm Shield License 1.0.0, with Additional Terms
+
+This software is licensed under the PolyForm Shield License 1.0.0, reproduced verbatim
+below, **as modified by the [Additional Terms](#additional-terms) at the end of this
+document**. The Additional Terms are narrower than the base license in at least one
+respect — read them before relying on anything the base text appears to permit.
 
 <https://polyformproject.org/licenses/shield/1.0.0>
 
@@ -92,4 +97,44 @@ A **product** can be a good or service, or a combination of them.
 
 ---
 
-For licensing exceptions or competing-use permission, contact Ashley Childress at <anchildress1@gmail.com>.
+# Additional Terms
+
+The licensor imposes the following terms in addition to the PolyForm Shield License 1.0.0
+above. They are strict obligations and conditions of every license granted under it.
+
+**Precedence.** Where an Additional Term grants less than the corresponding provision of
+PolyForm Shield 1.0.0, the Additional Term controls. In particular, Term 1 below narrows
+the [Noncompete](#noncompete) section: Shield alone would permit commercial use that does
+not compete, and Term 1 does not.
+
+1. **No Profit or Monetization.**
+   The Software may not be sold, rebranded, licensed, hosted as a paid SaaS, or used as the
+   basis of any product or service from which you or your organization earns revenue or
+   profit, without explicit written permission from Ashley Childress.
+
+   - **You CAN** use, copy, fork, or adapt this for your own workflows, inside your company,
+     for client projects, demos, education, or anything else — as long as you're not selling
+     the code, charging for it, or making money from the project itself.
+   - **You CANNOT** resell, offer as a paid service, or monetize this project or its
+     derivatives without prior written approval.
+
+2. **Endorsement.**
+   Neither the name of Ashley Childress nor the names of any contributors may be used to
+   endorse or promote products derived from this software without specific prior written
+   permission.
+
+3. **Attribution.**
+   Any public fork, copy, or substantial reuse must include this LICENSE and a clear
+   statement in your documentation or README:
+   "Based on original work by Ashley Childress – see
+   [https://github.com/anchildress1/supascribe-notes-mcp](https://github.com/anchildress1/supascribe-notes-mcp)."
+
+4. **No Warranty.**
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+   INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+   PURPOSE AND NONINFRINGEMENT.
+
+---
+
+For licensing exceptions or monetization/commercialization questions, contact Ashley
+Childress at <anchildress1@gmail.com>.
