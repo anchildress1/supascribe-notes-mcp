@@ -406,14 +406,20 @@ CI/CD in one line each:
 
 ## License
 
-[PolyForm Shield 1.0.0](LICENSE).
+[PolyForm Shield 1.0.0, with Additional Terms](LICENSE).
 
 Translated from lawyer: take it, fork it, run it, learn from it, build your own thing on top
-of it. Sell it if you want — Shield does not care about money. What Shield cares about is
-competition. You may not use this software to build something that competes with this
-software, or with anything I build using it. Everything else is fair game.
+of it. Use it at work, use it for client projects, use it to teach. All fine, all
+encouraged.
 
-If you want to do the one thing it forbids, ask. The address is below.
+Two things it forbids. You may not build something that **competes** with this software or
+with anything I build using it — that one is Shield's. And you may not **make money** off
+it: no reselling, no paid SaaS, no charging for it or its derivatives — that one is mine,
+and it is the reason this is not plain Shield. Fork it publicly and you also owe an
+attribution line back here.
+
+Both are waivable in writing. If you want to do either, ask — the address is at the bottom
+of [LICENSE](LICENSE).
 
 ---
 
