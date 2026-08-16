@@ -1,5 +1,8 @@
 # Supascribe Notes MCP
 
+<!--START_SECTION:rai-badge-->
+<!--END_SECTION:rai-badge-->
+
 A TypeScript MCP server that writes index cards to Supabase, deployed on Google Cloud Run.
 
 ## MCP Tools
