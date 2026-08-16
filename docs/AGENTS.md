@@ -16,7 +16,12 @@ Update the relevant file in the same commit as the code change:
 
 ## Style
 
-- AI-agent reader is the primary audience: concise, structured, scannable.
+Everything under `docs/` is written **for a human** — an engineer debugging at 2am or
+onboarding cold. This file is the only AI-facing document in the directory. Do not write
+`docs/*.md` in the terse imperative register this file uses.
+
+- Lead with the symptom the reader arrived with, then the cause, then the fix.
+- Explain why a constraint exists when the reader would otherwise think the code is wrong.
 - Tables for anything with a fixed set of options or fields.
 - Fenced code blocks with language identifiers.
 - Present tense ("the tool returns"). No marketing language, no filler.
