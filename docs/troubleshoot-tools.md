@@ -54,6 +54,34 @@ server.registerTool(
 );
 ```
 
+## Error: New Tool Works Over MCP But Never Appears in ChatGPT
+
+### Root Cause
+
+`createMcpServer` overrides the SDK's `tools/list` handler with a hand-built array
+(`toolListForChatGPT`) instead of the SDK's own registry. Only tools registered through
+the `registerToolAndRecord` helper are added to that array.
+
+A tool registered with `server.registerTool` directly is fully functional over MCP —
+`tools/call` reaches it — and is invisible to `tools/list`. There is no error.
+
+### Fix
+
+Register every tool via `registerToolAndRecord`, never `server.registerTool`.
+
+### Silent Skips
+
+`recordToolForChatGPT` drops a tool from the list and logs a warning if it is missing
+`title`, `description`, or `inputSchema`. Grep server logs for
+`Skipping tool in ChatGPT tools/list output` before assuming a platform bug.
+
+### Schema Sanitization
+
+`stripJsonSchemaKeywords` strips `$schema` and `default` recursively from every generated
+input schema. ChatGPT rejects descriptors containing them. Zod's `.default()` therefore
+documents nothing to the model — the default still applies server-side, but the model
+cannot see it. State defaults in the tool `description` if the model needs to know.
+
 ### OpenAPI Spec (REST fallback)
 
 If using the REST/Actions path instead of MCP, ensure:
