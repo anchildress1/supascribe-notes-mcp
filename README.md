@@ -51,18 +51,40 @@ If you want an assistant that accumulates rather than resets, this is the shape 
 
 ## Features
 
-| Feature                 | Description                                                                                             |
-| ----------------------- | ------------------------------------------------------------------------------------------------------- |
-| Two protocols, one core | MCP streamable HTTP and REST `/api/*` routes share identical handlers — no drift between surfaces       |
-| Validated writes        | Zod schemas gate every card before it reaches Postgres; invalid payloads never touch the database       |
-| Revision history        | Each write appends to `card_revisions` and is grouped under a `generation_runs` batch for auditability  |
-| Partial-failure honesty | A batch reports `written`, `errors`, and per-card `error_details` — it does not silently drop bad cards |
-| Soft delete             | Cards are never hard-deleted; read paths exclude `deleted_at` rows unless explicitly asked to include   |
-| Discovery lookups       | Dedicated tools for categories, projects, and tags so a model can orient before writing                 |
-| OAuth-gated             | Supabase Auth over OAuth 2.1 with PKCE, discoverable via `.well-known` metadata                         |
-| ChatGPT-safe schemas    | `tools/list` output is sanitized (`$schema`/`default` stripped) because ChatGPT rejects those keywords  |
+### Nothing gets lost
 
-### MCP Tools
+Cards are never hard-deleted. Deleting one sets a `deleted_at` timestamp and every read path
+quietly skips it, but the row and its full history stay in the database — you can always go
+looking. Every write also appends to `card_revisions`, so the corpus has a complete audit
+trail rather than a series of overwrites.
+
+That history is grouped, too. A `write_cards` call opens a `generation_runs` batch before it
+touches anything, which means a run that dies partway through still leaves a record of
+exactly what landed and what didn't.
+
+### It tells you when it fails
+
+Batch writes are the easy place to hide problems. This one doesn't: a response reports how
+many cards were `written`, how many produced `errors`, and a per-card `error_details` list
+naming each failure. Nineteen good cards and one bad one gets you nineteen cards and a
+complaint — not a silent twenty-success.
+
+### Two front doors, one set of locks
+
+The same seven capabilities are exposed twice — over MCP streamable HTTP for MCP clients, and
+over REST at `/api/*` for the ChatGPT Apps SDK. Both surfaces call the identical handler
+functions, so they cannot drift apart as the project changes. Both sit behind the same
+Supabase OAuth 2.1 gate, discoverable by clients through standard `.well-known` metadata.
+
+### Built for a model to use safely
+
+Zod schemas validate every card before it reaches Postgres, so malformed input never touches
+the database. Dedicated lookup tools for categories, projects, and tags let an assistant
+orient itself before writing instead of inventing a taxonomy. And the `tools/list` output is
+sanitized on the way out — ChatGPT rejects descriptors containing `$schema` or `default`, so
+those keywords are stripped.
+
+### The seven tools
 
 | Tool                | Description                                                         |
 | ------------------- | ------------------------------------------------------------------- |
@@ -74,7 +96,9 @@ If you want an assistant that accumulates rather than resets, this is the shape 
 | `lookup_tags`       | Get all unique lvl0/lvl1 tags used across active cards              |
 | `search_cards`      | Keyword search by category/tag/project/fact (excludes soft-deleted) |
 
-Batch limits: 50 cards per `write_cards` call, 50 IDs per `lookup_card_by_id` call.
+Both batch endpoints cap at 50 per call — 50 cards for `write_cards`, 50 IDs for
+`lookup_card_by_id`. Go over and the schema rejects the request rather than silently
+truncating it.
 
 ---
 
@@ -177,6 +201,10 @@ sequenceDiagram
 
 ## Project Structure
 
+Almost everything interesting is in `server.ts` — it builds both the Express app and the MCP
+server and wires every route. If you're looking for where something happens, start there and
+follow it out to `tools/`, which holds the actual work.
+
 ```text
 src/
   index.ts              # process entrypoint: load config, start server, wire shutdown
@@ -209,12 +237,16 @@ docs/                   # troubleshooting and reference material
 
 ## Getting Started
 
+You need a Supabase project of your own before any of this works — the server is a write path
+into a database, and there's no bundled one to fall back on. Everything else is optional
+until you deploy.
+
 ### Prerequisites
 
 - Node.js 22+
-- Docker (for containerized deployment)
-- Google Cloud CLI (`gcloud`) — for Cloud Run deployment
 - A Supabase project with the migrations in `supabase/migrations` applied
+- Docker, if you want to run it containerized
+- Google Cloud CLI (`gcloud`), only if you're deploying to Cloud Run
 
 ### Install
 
@@ -357,6 +389,11 @@ Tools not showing up in ChatGPT? See
 
 ## Security
 
+The threat model here is simple: this thing has write access to a personal knowledge base and
+is driven by a language model. Both halves of that sentence are reasons to be careful, so the
+following are load-bearing rather than decorative. If you're changing any of them, that's the
+part of a PR that gets read closely.
+
 - **OAuth-gated for MCP + API calls.** MCP protocol requests (to `/` when negotiated as MCP)
   and `/api/*` endpoints require a Supabase-issued Bearer token; missing or invalid tokens
   return a 401 plus a `WWW-Authenticate` challenge. MCP always gets a plain-text 401 rather
@@ -379,28 +416,39 @@ Tools not showing up in ChatGPT? See
 
 ## How to Contribute
 
-- Branch from `main` — commits never land on `main` directly.
-- Commits follow [Conventional Commits](https://conventionalcommits.org) and must carry an
-  AI-attribution footer (`Generated-by:` / `Assisted-by:`), enforced by
-  `commitlint-plugin-rai` via Lefthook.
-- Sign your commits (`git commit -S`).
-- Run `make ai-checks` before opening a PR. CI runs the same steps and enforces 85%
-  business-logic coverage.
-- Read the directory-scoped `AGENTS.md` files before touching tests, migrations, or docs.
+Branch off `main` and open a PR — nothing lands on `main` directly. Before you push, run
+`make ai-checks`; it runs exactly what CI runs, so if it passes locally you've already cleared
+the gate, including the 85% business-logic coverage floor.
 
-CI/CD in one line each:
+Two things about commits will bite you if nobody warns you first. They follow
+[Conventional Commits](https://conventionalcommits.org), which is unremarkable, and they must
+also carry an AI-attribution footer — `Generated-by:` or `Assisted-by:` naming the model, or
+nothing at all if you wrote it yourself. That second rule is enforced by
+`commitlint-plugin-rai` in a Lefthook hook, so a missing footer fails at commit time rather
+than in review. Commits are signed too (`git commit -S`).
 
-- **CI** — lint, test with coverage, secrets scan, build
-- **Release Please** — conventional-commit driven semantic versioning
-- **RAI Attribution** — scores AI-attribution footers and renders the badge above
+If you're touching tests, migrations, or documentation, read the `AGENTS.md` in that directory
+first. They're written for AI agents rather than for you, so they're blunt and skimmable —
+but they're also where the non-obvious rules live, like why views must re-declare their
+security options on every `CREATE OR REPLACE`.
+
+Three workflows run on this repo: **CI** (lint, test with coverage, secrets scan, build),
+**Release Please** (conventional-commit driven versioning), and **RAI Attribution**, which
+scores the attribution footers across history and rewrites the badge at the top of this file.
 
 ---
 
 ## What's Next
 
-- Embedded Apps SDK UI — tools currently declare `_meta.ui.visibility` but no
-  `_meta.ui.resourceUri`, so there is no iframe surface yet.
-- Migration file naming cleanup — legacy `NNN_` files predate the timestamped convention.
+The obvious gap is the embedded UI. Tools already declare `_meta.ui.visibility`, which is half
+of what an Apps SDK app needs, but none of them declare a `_meta.ui.resourceUri` — so cards
+come back as text rather than as anything you can look at. A rendered card surface in the
+ChatGPT composer is the next real feature.
+
+Less exciting but genuinely annoying: the migrations directory carries two naming conventions
+at once. The early files use `NNN_description.sql` and everything since uses a timestamp
+prefix, which makes ordering ambiguous at a glance. Worth normalizing before the list gets
+longer.
 
 ---
 
