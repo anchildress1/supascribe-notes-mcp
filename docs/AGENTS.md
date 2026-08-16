@@ -23,10 +23,14 @@ Update the relevant file in the same commit as the code change:
 
 ---
 
-## Images
+## Diagrams
 
-Diagrams go in `docs/images/`, referenced from `README.md` with a relative path.
-Regenerate on architecture changes — a stale diagram is worse than none.
+Mermaid only, fenced inline in the Markdown file that uses them. No rendered image files —
+they drift from the code and cannot be reviewed in a diff.
+
+- Include `accTitle:` and `accDescr:` on every diagram.
+- Validate syntax before committing.
+- Update the diagram in the same commit as the architecture change.
 
 ---
 
