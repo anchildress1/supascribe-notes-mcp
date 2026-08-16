@@ -3,9 +3,9 @@
 <!--START_SECTION:rai-badge-->
 <!--END_SECTION:rai-badge-->
 
-[![CI](https://github.com/anchildress1/supascribe-notes-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/anchildress1/supascribe-notes-mcp/actions/workflows/ci.yml)
-[![License: PolyForm Shield 1.0.0](https://img.shields.io/badge/License-PolyForm_Shield_1.0.0-6A5ACD)](LICENSE)
-[![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-FE5196?logo=conventionalcommits&logoColor=white)](https://conventionalcommits.org)
+[![CI](https://img.shields.io/github/actions/workflow/status/anchildress1/supascribe-notes-mcp/ci.yml?branch=main&style=for-the-badge&label=CI&logo=githubactions&logoColor=white)](https://github.com/anchildress1/supascribe-notes-mcp/actions/workflows/ci.yml)
+[![License: PolyForm Shield + Terms](https://img.shields.io/badge/License-PolyForm_Shield_%2B_Terms-6A5ACD?style=for-the-badge)](LICENSE)
+[![Conventional Commits](https://img.shields.io/badge/Conventional_Commits-1.0.0-FE5196?style=for-the-badge&logo=conventionalcommits&logoColor=white)](https://conventionalcommits.org)
 
 A TypeScript MCP server that writes index cards to Supabase, deployed on Google Cloud Run.
 One service exposes the same seven tools twice — over the Model Context Protocol for MCP
