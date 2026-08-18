@@ -396,8 +396,8 @@ Both `tags.lvl0` and `tags.lvl1` are required arrays — pass `[]` rather than o
 docker build -t supascribe-notes-mcp .
 docker run -p 8080:8080 --env-file .env supascribe-notes-mcp
 
-# Deploy to Cloud Run
-gcloud config set project anchildress1-unstable
+# Deploy to Cloud Run — set your own project first
+gcloud config set project <YOUR_GCP_PROJECT_ID>
 bash deploy.sh
 ```
 
