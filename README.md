@@ -58,8 +58,14 @@ If you want an assistant that accumulates rather than resets, this is the shape 
 
 Cards are never hard-deleted. Deleting one sets a `deleted_at` timestamp and every read path
 quietly skips it, but the row and its full history stay in the database — you can always go
-looking. Every write also appends to `card_revisions`, so the corpus has a complete audit
+looking. Every write also appends to `card_revisions`, so the corpus accumulates an audit
 trail rather than a series of overwrites.
+
+One caveat worth knowing: the card upsert and its revision insert are separate statements,
+not one transaction. If the upsert lands and the revision insert fails, the card still counts
+as written and the response carries a `Revision for "<title>"` error alongside it. Rare, but
+it means a row can move without a matching revision — check `error_details` rather than
+assuming a non-zero `written` implies clean history.
 
 That history is grouped, too. A `write_cards` call opens a `generation_runs` batch before it
 touches anything, which means a run that dies partway through still leaves a record of
@@ -74,10 +80,15 @@ complaint — not a silent twenty-success.
 
 ### Two front doors, one set of locks
 
-The same seven capabilities are exposed twice — over MCP streamable HTTP for MCP clients, and
-over REST at `/api/*` for the ChatGPT Apps SDK. Both surfaces call the identical handler
-functions, so they cannot drift apart as the project changes. Both sit behind the same
-Supabase OAuth 2.1 gate, discoverable by clients through standard `.well-known` metadata.
+Six of the seven tools are exposed twice — over MCP streamable HTTP for MCP clients, and over
+REST at `/api/*` for Actions-style integrations. Those six call the identical handler
+functions on both paths, so they cannot drift apart as the project changes, and both paths sit
+behind the same Supabase OAuth 2.1 gate, discoverable through standard `.well-known` metadata.
+
+`health` is the exception, and the difference matters. The MCP `health` tool actually probes
+Supabase connectivity and is behind auth. The public `GET /health` and `GET /status` routes
+are liveness checks for uptime monitors — they return `ok` unconditionally and never touch the
+database. A green `/health` says the process is up, not that it can reach Postgres.
 
 ### Built for a model to use safely
 
@@ -338,7 +349,11 @@ discover the OAuth configuration automatically via:
 The MCP `initialize` response returns an `Mcp-Session-Id` header. Send that header on every
 subsequent MCP request in the session.
 
-### REST endpoints (ChatGPT Apps SDK)
+### REST endpoints (Actions fallback)
+
+These are the REST/Actions path, not the Apps SDK surface. A ChatGPT App discovers tools
+through MCP `tools/list` over streaming HTTP — the endpoint above. Point an integration at
+these routes and you get a working API with no composer or tool UI.
 
 The OpenAPI surface at `/openapi.json` exposes:
 
@@ -443,8 +458,9 @@ the gate, including the 85% business-logic coverage floor.
 
 Two things about commits will bite you if nobody warns you first. They follow
 [Conventional Commits](https://conventionalcommits.org), which is unremarkable, and they must
-also carry an AI-attribution footer — `Generated-by:` or `Assisted-by:` naming the model, or
-nothing at all if you wrote it yourself. That second rule is enforced by
+also carry an attribution footer — `Generated-by:` or `Assisted-by:` naming the model, or
+`Authored-by:` naming yourself if you wrote it unaided. Every commit needs one; there is no
+omit-it case. That second rule is enforced by
 `commitlint-plugin-rai` in a Lefthook hook, so a missing footer fails at commit time rather
 than in review. Commits are signed too (`git commit -S`).
 
