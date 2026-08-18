@@ -1,7 +1,10 @@
 # Supascribe Notes MCP
 
+<!-- prettier-ignore-start -->
 <!--START_SECTION:rai-badge-->
+![AI attribution](https://img.shields.io/badge/AI%20attribution-82%25%20since%202026--02-C03070?style=for-the-badge)
 <!--END_SECTION:rai-badge-->
+<!-- prettier-ignore-end -->
 
 [![CI](https://img.shields.io/github/actions/workflow/status/anchildress1/supascribe-notes-mcp/ci.yml?branch=main&style=for-the-badge&label=CI&logo=githubactions&logoColor=white)](https://github.com/anchildress1/supascribe-notes-mcp/actions/workflows/ci.yml)
 [![License: PolyForm Shield + Terms](https://img.shields.io/badge/License-PolyForm_Shield_%2B_Terms-6A5ACD?style=for-the-badge)](LICENSE)
