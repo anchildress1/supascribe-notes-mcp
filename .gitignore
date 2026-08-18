@@ -15,3 +15,6 @@ coverage/
 .claude/
 .mcp/
 .mcp.json
+
+# macOS
+.DS_Store
