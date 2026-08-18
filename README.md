@@ -281,6 +281,24 @@ Verify locally:
 curl http://localhost:8080/status
 ```
 
+### Loose scripts
+
+Three things live outside the `make` targets and are easy to mistake for leftovers. They
+aren't — but nothing referenced them until now, which is why they looked like strays.
+
+- **`verify-mcp.sh <token>`** — walks the full Streamable HTTP MCP handshake against a
+  deployed service with curl. Reach for it when a client says the server is broken and you
+  want to see the raw protocol exchange. It prints instructions for grabbing a Supabase token
+  out of your browser session.
+- **`test-remote.mjs`** — the same job from the other end: a real MCP client built on the
+  SDK that connects, lists tools, and exercises them against the deployed service. Heavier
+  than the shell script, and the one to use when you care whether a _tool_ works rather than
+  whether the _transport_ works.
+- **`algolia/conversion.js`** — not part of the server at all. It's the transform function
+  you paste into an Algolia ingestion pipeline to index cards from this database; it drops
+  soft-deleted rows and normalizes tags. Nothing in the repo runs it, and nothing should.
+  `conversion-input.sample.json` is a sample record to test it against.
+
 ### Database
 
 Apply the migrations in `supabase/migrations` using the Supabase CLI or the SQL editor.
