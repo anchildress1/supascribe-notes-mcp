@@ -108,31 +108,20 @@ the [Noncompete](#noncompete) section: Shield alone would permit commercial use 
 not compete, and Term 1 does not.
 
 1. **No Profit or Monetization.**
-   The Software may not be sold, rebranded, licensed, hosted as a paid SaaS, or used as the
-   basis of any product or service from which you or your organization earns revenue or
-   profit, without explicit written permission from Ashley Childress.
+   The Software may not be sold, rebranded, licensed, hosted as a paid SaaS, or used as the basis of any product or service from which you or your organization earns revenue or profit, without explicit written permission from Ashley Childress.
 
-   - **You CAN** use, copy, fork, or adapt this for your own workflows, inside your company,
-     for client projects, demos, education, or anything else — as long as you're not selling
-     the code, charging for it, or making money from the project itself.
-   - **You CANNOT** resell, offer as a paid service, or monetize this project or its
-     derivatives without prior written approval.
+   - **You CAN** use, copy, fork, or adapt this for your own workflows, inside your company, for client projects, demos, education, or anything else—as long as you’re not selling the code, charging for it, or making money from the project itself.
+   - **You CANNOT** resell, offer as a paid service, or monetize this project or its derivatives without prior written approval.
 
 2. **Endorsement.**
-   Neither the name of Ashley Childress nor the names of any contributors may be used to
-   endorse or promote products derived from this software without specific prior written
-   permission.
+    The name of Ashley Childress nor the names of any contributors may be used to endorse or promote products derived from this software without specific prior written permission.
 
 3. **Attribution.**
-   Any public fork, copy, or substantial reuse must include this LICENSE and a clear
-   statement in your documentation or README:
-   "Based on original work by Ashley Childress – see
-   [https://github.com/anchildress1/supascribe-notes-mcp](https://github.com/anchildress1/supascribe-notes-mcp)."
+   Any public fork, copy, or substantial reuse must include this LICENSE and a clear statement in your documentation or README:
+   “Based on original work by Ashley Childress – see [https://github.com/anchildress1/supascribe-notes-mcp](https://github.com/anchildress1/supascribe-notes-mcp).”
 
 4. **No Warranty.**
-   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
-   INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
-   PURPOSE AND NONINFRINGEMENT.
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 
 ---
 
