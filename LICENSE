@@ -104,14 +104,15 @@ above. They are strict obligations and conditions of every license granted under
 
 **Precedence.** Where an Additional Term grants less than the corresponding provision of
 PolyForm Shield 1.0.0, the Additional Term controls. In particular, Term 1 below narrows
-the [Distribution License](#distribution-license): Shield alone would permit selling copies
-of the software to anyone who does not compete, and Term 1 does not.
+both the [Distribution License](#distribution-license) and [Noncompete](#noncompete):
+Shield alone would permit selling copies of the software, and charging for it, to anyone
+who does not compete. Term 1 does not.
 
-1. **No Sale.**
-   The Software may not be sold, resold, rebranded, sublicensed, or hosted as a paid service, and access to it may not be charged for, without explicit written permission from Ashley Childress. Commercial use is permitted—what is forbidden is selling the Software itself.
+1. **No Profit or Monetization.**
+   The Software and its derivatives may not be sold, resold, rebranded, sublicensed, hosted as a service for others—whether or not a fee is charged—or otherwise monetized, without explicit written permission from Ashley Childress.
 
-   - **You CAN** use, copy, fork, or adapt this for your own workflows, inside your company, for client projects, demos, education, or commercial products that earn revenue—as long as you’re not selling the Software itself or charging anyone for access to it.
-   - **You CANNOT** resell it, relicense it, offer it as a paid or hosted service, or charge for the Software or its derivatives without prior written approval.
+   - **You CAN** use, copy, fork, or adapt this for your own workflows, inside your company, for client projects, demos, education, or anything else—as long as you’re not selling the code, charging for it, or making money from the project itself.
+   - **You CANNOT** resell, offer as a hosted service whether paid or free, or monetize this project or its derivatives without prior written approval.
 
 2. **Endorsement.**
     The name of Ashley Childress nor the names of any contributors may be used to endorse or promote products derived from this software without specific prior written permission.

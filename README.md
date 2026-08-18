@@ -497,15 +497,17 @@ Translated from lawyer: take it, fork it, run it, learn from it, build your own 
 of it. Use it at work, use it for client projects, use it to teach. All fine, all
 encouraged.
 
-Commercial use is fine. Build a product on it, ship it to customers, earn money — none of
-that needs my permission.
-
 Two things it forbids. You may not build something that **competes** with this software or
-with anything I build using it — that one is Shield's. And you may not **sell the software
-itself**: no reselling, no relicensing, no paid or hosted service, no charging anyone for
-access — that one is mine, and it is the reason this is not plain Shield. The line is
-whether the software is the thing being sold, not whether money changes hands. Fork it
-publicly and you also owe an attribution line back here.
+with anything I build using it — that one is Shield's. And you may not **make money off
+it**: no selling, no reselling, no relicensing, no running it as a service for other people
+whether you charge for that or not — that one is mine, and it is the reason this is not
+plain Shield.
+
+The distinction that trips people up: using it while getting paid for something else is
+fine. Bill a client for work you did, ship an internal tool at a for-profit company, teach a
+paid course that uses it — all fine, because the money is for your work, not for my project.
+What you cannot do is make the project itself the thing that earns. Fork it publicly and you
+also owe an attribution line back here.
 
 Both are waivable in writing. If you want to do either, ask — the address is at the bottom
 of [LICENSE](LICENSE).
