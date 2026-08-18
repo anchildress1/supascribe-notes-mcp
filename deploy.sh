@@ -172,7 +172,13 @@ echo "Cleaning up old revisions..."
 if [[ -z "$ACTIVE_REVISION" ]]; then
     echo "  Could not determine the active revision — skipping cleanup to avoid deleting a serving revision." >&2
 else
-    mapfile -t STALE_REVISIONS < <(
+    # Read into an array with a loop rather than `mapfile`: mapfile is a bash 4.0
+    # builtin and macOS ships bash 3.2, where this step aborts the whole deploy
+    # after the service has already rolled out.
+    STALE_REVISIONS=()
+    while IFS= read -r revision; do
+        [[ -n "$revision" ]] && STALE_REVISIONS+=("$revision")
+    done < <(
         gcloud run revisions list \
             --service "$SERVICE_NAME" \
             --region "$REGION" \
@@ -185,8 +191,15 @@ else
         echo "  No stale revisions to delete."
     else
         echo "  Deleting ${#STALE_REVISIONS[@]} revision(s): ${STALE_REVISIONS[*]}"
-        gcloud run revisions delete "${STALE_REVISIONS[@]}" \
-            --region "$REGION" --project "$PROJECT_ID" --quiet 2>&1 || true
+        # One call per revision: `gcloud run revisions delete` accepts a single
+        # revision and rejects the whole invocation with "unrecognized arguments"
+        # when handed more, which `|| true` then swallows — so passing the array
+        # deleted nothing at all whenever there was more than one stale revision.
+        for revision in "${STALE_REVISIONS[@]}"; do
+            gcloud run revisions delete "$revision" \
+                --region "$REGION" --project "$PROJECT_ID" --quiet 2>&1 \
+                || echo "  Warning: failed to delete $revision" >&2
+        done
     fi
 fi
 
