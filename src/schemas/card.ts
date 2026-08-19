@@ -48,10 +48,7 @@ export const CardInputSchema = z.object({
     .string()
     .optional()
     .nullable()
-    .transform((value) => {
-      const trimmed = value?.trim();
-      return trimmed ? trimmed : null;
-    })
+    .transform((value) => value?.trim() || null)
     .describe('A short summary or "tweet-sized" description of the card content. Optional.'),
   fact: z
     .string()
