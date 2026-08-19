@@ -46,8 +46,13 @@ export const CardInputSchema = z.object({
     .describe('The title of the card. Should be concise and descriptive.'),
   blurb: z
     .string()
-    .min(1, 'blurb is required')
-    .describe('A short summary or "tweet-sized" description of the card content.'),
+    .optional()
+    .nullable()
+    .transform((value) => {
+      const trimmed = value?.trim();
+      return trimmed ? trimmed : null;
+    })
+    .describe('A short summary or "tweet-sized" description of the card content. Optional.'),
   fact: z
     .string()
     .min(1, 'fact is required')

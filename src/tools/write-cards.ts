@@ -30,7 +30,7 @@ type BatchWriteOutcome = {
 type CardRow = {
   objectID: string;
   title: string;
-  blurb: string;
+  blurb: string | null;
   fact: string;
   url: string | undefined;
   tags: CardInput['tags'];
