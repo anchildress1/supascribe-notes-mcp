@@ -1,0 +1,28 @@
+name: RAI Attribution
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  score:
+    name: Score
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Score RAI attribution and update badge
+        uses: anchildress1/rai-commit-badge@3f324a7208b99819064edec7d0688168a9a25399 # v1.0.0
+        with:
+          style: for-the-badge

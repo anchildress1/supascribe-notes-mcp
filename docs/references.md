@@ -68,3 +68,10 @@
 ### Security Context (Why Narrow Write Tools Matter)
 
 - https://www.itpro.com/security/a-malicious-mcp-server-is-silently-stealing-user-emails
+
+## Repo Tooling & Licensing
+
+- https://polyformproject.org/licenses/shield/1.0.0 (LICENSE — canonical text)
+- https://github.com/polyformproject/polyform-licenses (upstream license source)
+- https://github.com/anchildress1/rai-commit-badge (RAI Attribution workflow action)
+- https://www.conventionalcommits.org/en/v1.0.0/ (commit message spec)

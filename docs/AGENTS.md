@@ -16,17 +16,26 @@ Update the relevant file in the same commit as the code change:
 
 ## Style
 
-- AI-agent reader is the primary audience: concise, structured, scannable.
+Everything under `docs/` is written **for a human** — an engineer debugging at 2am or
+onboarding cold. This file is the only AI-facing document in the directory. Do not write
+`docs/*.md` in the terse imperative register this file uses.
+
+- Lead with the symptom the reader arrived with, then the cause, then the fix.
+- Explain why a constraint exists when the reader would otherwise think the code is wrong.
 - Tables for anything with a fixed set of options or fields.
 - Fenced code blocks with language identifiers.
 - Present tense ("the tool returns"). No marketing language, no filler.
 
 ---
 
-## Images
+## Diagrams
 
-Diagrams go in `docs/images/`, referenced from `README.md` with a relative path.
-Regenerate on architecture changes — a stale diagram is worse than none.
+Mermaid only, fenced inline in the Markdown file that uses them. No rendered image files —
+they drift from the code and cannot be reviewed in a diff.
+
+- Include `accTitle:` and `accDescr:` on every diagram.
+- Validate syntax before committing.
+- Update the diagram in the same commit as the architecture change.
 
 ---
 

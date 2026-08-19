@@ -12,6 +12,11 @@ coverage/
 .secrets.baseline
 
 # Local agent / MCP client settings
-.claude/
+# .claude/skills is shared with the repo; everything else under .claude is per-machine
+.claude/*
+!.claude/skills/
 .mcp/
 .mcp.json
+
+# macOS
+.DS_Store

@@ -77,8 +77,30 @@ describe('CardInputSchema', () => {
     expect(() => CardInputSchema.parse({ ...validCard, title: '' })).toThrow();
   });
 
-  it('rejects empty blurb', () => {
-    expect(() => CardInputSchema.parse({ ...validCard, blurb: '' })).toThrow();
+  it('normalizes an empty blurb to null', () => {
+    const result = CardInputSchema.parse({ ...validCard, blurb: '' });
+    expect(result.blurb).toBeNull();
+  });
+
+  it('normalizes a missing blurb to null', () => {
+    const { blurb: _, ...cardWithoutBlurb } = validCard;
+    const result = CardInputSchema.parse(cardWithoutBlurb);
+    expect(result.blurb).toBeNull();
+  });
+
+  it('accepts an explicit null blurb', () => {
+    const result = CardInputSchema.parse({ ...validCard, blurb: null });
+    expect(result.blurb).toBeNull();
+  });
+
+  it('normalizes a whitespace-only blurb to null', () => {
+    const result = CardInputSchema.parse({ ...validCard, blurb: '   ' });
+    expect(result.blurb).toBeNull();
+  });
+
+  it('trims blurb whitespace', () => {
+    const result = CardInputSchema.parse({ ...validCard, blurb: '  padded  ' });
+    expect(result.blurb).toBe('padded');
   });
 
   it('rejects empty fact', () => {
