@@ -113,6 +113,32 @@ if ! gcloud artifacts repositories describe "$SERVICE_NAME" \
         --description="Docker repository for $SERVICE_NAME"
 fi
 
+# Keep only the 2 most recent image versions. Re-applied every deploy so it
+# stays in force even if someone edits the policy in the console; GCP enforces
+# it in the background, not synchronously with this script.
+echo "Applying Artifact Registry cleanup policy (keep 2 most recent versions)..."
+CLEANUP_POLICY_FILE=$(mktemp)
+trap 'rm -f "$CLEANUP_POLICY_FILE"' EXIT
+cat > "$CLEANUP_POLICY_FILE" <<'JSON'
+[
+  {
+    "name": "keep-2-most-recent",
+    "action": { "type": "Keep" },
+    "mostRecentVersions": { "keepCount": 2 }
+  },
+  {
+    "name": "delete-older-versions",
+    "action": { "type": "Delete" },
+    "condition": { "tagState": "any" }
+  }
+]
+JSON
+gcloud artifacts repositories set-cleanup-policies "$SERVICE_NAME" \
+    --location="$REGION" \
+    --project "$PROJECT_ID" \
+    --policy="$CLEANUP_POLICY_FILE" \
+    --no-dry-run --quiet
+
 # Build and push image
 IMAGE_URI="$REGION-docker.pkg.dev/$PROJECT_ID/$SERVICE_NAME/$SERVICE_NAME:latest"
 echo "Building: $IMAGE_URI"
