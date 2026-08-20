@@ -1,33 +1,32 @@
 .PHONY: install lint format test test-coverage secrets-scan ai-checks build clean dev deploy
 
 dev:
-
 	npm run dev
 
 install:
 	npm install
-	npx lefthook install
+	./node_modules/.bin/lefthook install
 
 lint:
-	npx eslint .
+	npm run lint
 
 format:
-	npx prettier --write .
+	npm run format
 
 test:
-	npx vitest run
+	npm run test
 
 test-coverage:
-	npx vitest run --coverage
+	npm run test:coverage
 
 secrets-scan:
-	npx secretlint "**/*"
+	./node_modules/.bin/secretlint "**/*"
 
 ai-checks: format lint build test-coverage secrets-scan
 	@echo "✅ All checks passed"
 
 build:
-	npx tsc
+	npm run build
 
 clean:
 	rm -rf dist coverage
