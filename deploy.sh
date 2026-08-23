@@ -113,6 +113,40 @@ if ! gcloud artifacts repositories describe "$SERVICE_NAME" \
         --description="Docker repository for $SERVICE_NAME"
 fi
 
+# Keep only the 2 most recent image versions of this service's own image.
+# Re-applied every deploy so it stays in force even if someone edits the
+# policy in the console; GCP enforces it in the background, not synchronously
+# with this script. Scoped to $SERVICE_NAME on both rules — leaving the
+# delete rule unscoped while only the keep rule was scoped would delete every
+# version of any other image that ever lands in this repo, not just prune it.
+#
+# Trade-off: stacked with the revision cleanup below, this shrinks the
+# rollback window to roughly the last deploy or two — older images and
+# revisions are both gone, not just untagged.
+#
+# Requires artifactregistry.repositories.update (e.g. roles/artifactregistry.
+# repoAdmin) on top of the base deploy permissions. Non-fatal on failure:
+# retention is housekeeping, not a reason to block shipping the service.
+echo "Applying Artifact Registry cleanup policy (keep 2 most recent versions)..."
+gcloud artifacts repositories set-cleanup-policies "$SERVICE_NAME" \
+    --location="$REGION" \
+    --project "$PROJECT_ID" \
+    --policy=- \
+    --no-dry-run --quiet <<JSON || echo "  Warning: failed to apply Artifact Registry cleanup policy" >&2
+[
+  {
+    "name": "keep-2-most-recent",
+    "action": { "type": "Keep" },
+    "mostRecentVersions": { "keepCount": 2, "packageNamePrefixes": ["$SERVICE_NAME"] }
+  },
+  {
+    "name": "delete-older-versions",
+    "action": { "type": "Delete" },
+    "condition": { "tagState": "any", "packageNamePrefixes": ["$SERVICE_NAME"] }
+  }
+]
+JSON
+
 # Build and push image
 IMAGE_URI="$REGION-docker.pkg.dev/$PROJECT_ID/$SERVICE_NAME/$SERVICE_NAME:latest"
 echo "Building: $IMAGE_URI"

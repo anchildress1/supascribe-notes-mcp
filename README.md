@@ -120,7 +120,7 @@ truncating it.
 
 | Layer         | Tools                                                                        |
 | ------------- | ---------------------------------------------------------------------------- |
-| Runtime       | Node.js 22+, TypeScript 5.7, Express 5, ESM only                             |
+| Runtime       | Node.js 24+, TypeScript 5.7, Express 5, ESM only                             |
 | MCP & AI      | `@modelcontextprotocol/sdk`, OpenAI SDK                                      |
 | Data          | Supabase (`@supabase/supabase-js`), Postgres with RLS, Zod validation        |
 | Logging       | Pino                                                                         |
@@ -257,7 +257,7 @@ until you deploy.
 
 ### Prerequisites
 
-- Node.js 22+
+- Node.js 24+
 - A Supabase project with the migrations in `supabase/migrations` applied
 - Docker, if you want to run it containerized
 - Google Cloud CLI (`gcloud`), only if you're deploying to Cloud Run

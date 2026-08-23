@@ -144,7 +144,7 @@ async function main() {
   });
 
   console.log('--- Result ---');
-  console.log(JSON.stringify(execResult, null, 2));
+  console.dir(execResult, { depth: null });
 
   client.close();
 }
