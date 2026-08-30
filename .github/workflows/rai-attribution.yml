@@ -23,6 +23,6 @@ jobs:
           fetch-depth: 0
 
       - name: Score RAI attribution and update badge
-        uses: anchildress1/rai-commit-badge@3f324a7208b99819064edec7d0688168a9a25399 # v1.0.0
+        uses: anchildress1/rai-commit-badge@4116096f0a33a6ac8bf3daafcd239fa548328e99 # v1.0.0
         with:
           style: for-the-badge
