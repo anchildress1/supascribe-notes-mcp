@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/anchildress1/supascribe-notes-mcp/compare/v1.1.0...v1.1.1) (2026-08-30)
+
+
+### Bug Fixes
+
+* **deps:** resolve Dependabot alerts + supascribe-cards skill ([#32](https://github.com/anchildress1/supascribe-notes-mcp/issues/32)) ([57772fb](https://github.com/anchildress1/supascribe-notes-mcp/commit/57772fb0bf55e4eefb1bb74ae2d51fe279cac2e2))
+
 ## [1.1.0](https://github.com/anchildress1/supascribe-notes-mcp/compare/v1.0.0...v1.1.0) (2026-07-15)
 
 
