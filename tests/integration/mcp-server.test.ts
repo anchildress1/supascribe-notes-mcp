@@ -216,24 +216,16 @@ describe('MCP Server Integration', () => {
     expect(res.statusCode).toBe(404);
   });
 
-  it('GET /.well-known/oauth-protected-resource points clients at Supabase as the authorization server', async () => {
-    const { res } = await invokeApp(app, {
-      method: 'GET',
-      url: '/.well-known/oauth-protected-resource',
-    });
-    const body = res._getJSON() as { authorization_servers: string[] };
-    expect(body.authorization_servers).toEqual([`${testConfig.supabaseUrl}/auth/v1`]);
-  });
-
-  it('GET /.well-known/oauth-protected-resource returns metadata', async () => {
+  it('GET /.well-known/oauth-protected-resource returns metadata naming Supabase as the authorization server', async () => {
     const { res } = await invokeApp(app, {
       method: 'GET',
       url: '/.well-known/oauth-protected-resource',
     });
     expect(res.statusCode).toBe(200);
     expect(res._getHeaders()['cache-control']).toContain('no-store');
-    const body = res._getJSON() as { resource: string };
+    const body = res._getJSON() as { resource: string; authorization_servers: string[] };
     expect(body.resource).toBe(testConfig.publicUrl);
+    expect(body.authorization_servers).toEqual([`${testConfig.supabaseUrl}/auth/v1`]);
   });
 
   it('GET /.well-known/oauth-protected-resource/mcp returns the same metadata (ChatGPT compat)', async () => {
