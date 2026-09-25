@@ -347,6 +347,12 @@ its dynamic client registration endpoint. This server deliberately does not serv
 `/.well-known/oauth-authorization-server`: strict clients such as Codex reject metadata whose
 issuer origin differs from the origin serving it.
 
+Codex has no field for a client ID or secret and registers itself dynamically, so the Supabase
+project must have the OAuth Server enabled with dynamic client registration turned on
+(Supabase dashboard → Authentication → OAuth Server). Without it, `codex mcp login` fails at
+registration. Clients configured with a pre-registered client ID and secret, such as a Claude
+connector, are unaffected.
+
 The MCP `initialize` response returns an `Mcp-Session-Id` header. Send that header on every
 subsequent MCP request in the session.
 
