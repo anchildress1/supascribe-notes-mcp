@@ -148,23 +148,9 @@ export function createApp(config: Config): express.Express {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 
-  // OAuth Discovery Endpoint
-  app.get('/.well-known/oauth-authorization-server', (req, res) => {
-    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
-    res.set('Pragma', 'no-cache');
-    res.json({
-      issuer: `${config.supabaseUrl}/auth/v1`,
-      authorization_endpoint: `${config.supabaseUrl}/auth/v1/oauth/authorize`,
-      token_endpoint: `${config.supabaseUrl}/auth/v1/oauth/token`,
-      jwks_uri: `${config.supabaseUrl}/auth/v1/.well-known/jwks.json`,
-      scopes_supported: [],
-      response_types_supported: ['code'],
-      grant_types_supported: ['authorization_code', 'refresh_token'],
-      token_endpoint_auth_methods_supported: ['client_secret_post'],
-      pkce_required: true,
-    });
-  });
-
+  // No /.well-known/oauth-authorization-server here: a document served from this origin must
+  // carry this origin as its issuer (RFC 8414), and ours is Supabase's. Clients follow
+  // authorization_servers below to Supabase's own metadata, which also advertises DCR.
   // OAuth Protected Resource Metadata
   const sendProtectedResourceMetadata = (_req: express.Request, res: express.Response): void => {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
