@@ -341,10 +341,11 @@ cached tool metadata.
 ### Authentication
 
 All MCP operations and `/api/*` routes require a Supabase-issued Bearer token. MCP clients
-discover the OAuth configuration automatically via:
-
-- `/.well-known/oauth-authorization-server`
-- `/.well-known/oauth-protected-resource`
+discover the OAuth configuration through `/.well-known/oauth-protected-resource`, which names
+Supabase Auth as the authorization server. Clients then read Supabase's own metadata, including
+its dynamic client registration endpoint. This server deliberately does not serve
+`/.well-known/oauth-authorization-server`: strict clients such as Codex reject metadata whose
+issuer origin differs from the origin serving it.
 
 The MCP `initialize` response returns an `Mcp-Session-Id` header. Send that header on every
 subsequent MCP request in the session.

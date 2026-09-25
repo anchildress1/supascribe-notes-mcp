@@ -208,19 +208,21 @@ describe('MCP Server Integration', () => {
     expect(res._getHeaders()['content-type']).toContain('text/html');
   });
 
-  it('GET /.well-known/oauth-authorization-server returns metadata', async () => {
+  it('GET /.well-known/oauth-authorization-server is not served (issuer would not match this origin)', async () => {
     const { res } = await invokeApp(app, {
       method: 'GET',
       url: '/.well-known/oauth-authorization-server',
     });
-    expect(res.statusCode).toBe(200);
-    expect(res._getHeaders()['cache-control']).toContain('no-store');
-    const body = res._getJSON() as {
-      authorization_endpoint: string;
-      token_endpoint: string;
-    };
-    expect(body.authorization_endpoint).toBe(`${testConfig.supabaseUrl}/auth/v1/oauth/authorize`);
-    expect(body.token_endpoint).toBe(`${testConfig.supabaseUrl}/auth/v1/oauth/token`);
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('GET /.well-known/oauth-protected-resource points clients at Supabase as the authorization server', async () => {
+    const { res } = await invokeApp(app, {
+      method: 'GET',
+      url: '/.well-known/oauth-protected-resource',
+    });
+    const body = res._getJSON() as { authorization_servers: string[] };
+    expect(body.authorization_servers).toEqual([`${testConfig.supabaseUrl}/auth/v1`]);
   });
 
   it('GET /.well-known/oauth-protected-resource returns metadata', async () => {
