@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.1](https://github.com/anchildress1/supascribe-notes-mcp/compare/v1.1.0...v1.1.1) (2026-09-28)
+
+
+### Bug Fixes
+
+* **deps:** resolve Dependabot alerts + supascribe-cards skill ([#32](https://github.com/anchildress1/supascribe-notes-mcp/issues/32)) ([57772fb](https://github.com/anchildress1/supascribe-notes-mcp/commit/57772fb0bf55e4eefb1bb74ae2d51fe279cac2e2))
+* stop serving OAuth authorization-server metadata with a foreign issuer ([#49](https://github.com/anchildress1/supascribe-notes-mcp/issues/49)) ([b018923](https://github.com/anchildress1/supascribe-notes-mcp/commit/b0189234c71e58bbdb915c5de73c15c5e22f6096))
+
 ## [1.1.0](https://github.com/anchildress1/supascribe-notes-mcp/compare/v1.0.0...v1.1.0) (2026-07-15)
 
 
