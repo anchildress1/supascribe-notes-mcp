@@ -31,7 +31,7 @@ import cors from 'cors';
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 import { ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import type { AnySchema, ZodRawShapeCompat } from '@modelcontextprotocol/sdk/server/zod-compat.js';
-import { zodToJsonSchema } from 'zod-to-json-schema';
+import { toJSONSchema, type ZodType } from 'zod';
 import { randomUUID } from 'node:crypto';
 import type { CorsOptions } from 'cors';
 
@@ -422,11 +422,9 @@ export function createMcpServer(supabase: SupabaseClient, serverVersion = '1.0.0
     }
 
     const inputSchema = stripJsonSchemaKeywords(
-      zodToJsonSchema(tool.inputSchema as never, {
-        target: 'openApi3',
-        $refStrategy: 'none',
-        pipeStrategy: 'input',
-        strictUnions: true,
+      toJSONSchema(tool.inputSchema as ZodType, {
+        target: 'openapi-3.0',
+        io: 'input',
       }),
     );
 

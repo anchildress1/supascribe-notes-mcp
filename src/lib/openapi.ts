@@ -1,4 +1,4 @@
-import { zodToJsonSchema } from 'zod-to-json-schema';
+import { toJSONSchema } from 'zod';
 import {
   CardInputSchema,
   WriteCardsInputSchema,
@@ -7,17 +7,7 @@ import {
 } from '../schemas/card.js';
 
 export function createOpenApiSpec(serverUrl: string, serverVersion = '1.0.0'): object {
-  // Generate schemas with proper references
-  const CardInputJsonSchema = zodToJsonSchema(CardInputSchema, 'CardInput');
-  const WriteCardsInputJsonSchema = zodToJsonSchema(WriteCardsInputSchema, 'WriteCardsInput');
-  const CardIdInputJsonSchema = zodToJsonSchema(CardIdInputSchema, 'CardIdInput');
-  const SearchCardsInputJsonSchema = zodToJsonSchema(SearchCardsInputSchema, 'SearchCardsInput');
-
-  // Helper to extract the actual schema definition from zod-to-json-schema output
-  type JsonSchemaWithDefinitions = { definitions?: Record<string, unknown> };
-  const getDefinition = (jsonSchema: unknown, name: string) => {
-    return (jsonSchema as JsonSchemaWithDefinitions).definitions?.[name] || jsonSchema;
-  };
+  const schemaOptions = { io: 'input', target: 'draft-2020-12' } as const;
 
   const jsonSchemaContent = (schemaRef: string) => ({
     'application/json': {
@@ -81,7 +71,7 @@ export function createOpenApiSpec(serverUrl: string, serverVersion = '1.0.0'): o
     ],
     components: {
       schemas: {
-        CardInput: getDefinition(CardInputJsonSchema, 'CardInput'),
+        CardInput: toJSONSchema(CardInputSchema, schemaOptions),
         Card: {
           allOf: [
             { $ref: '#/components/schemas/CardInput' },
@@ -96,9 +86,9 @@ export function createOpenApiSpec(serverUrl: string, serverVersion = '1.0.0'): o
             },
           ],
         },
-        WriteCardsInput: getDefinition(WriteCardsInputJsonSchema, 'WriteCardsInput'),
-        CardIdInput: getDefinition(CardIdInputJsonSchema, 'CardIdInput'),
-        SearchCardsInput: getDefinition(SearchCardsInputJsonSchema, 'SearchCardsInput'),
+        WriteCardsInput: toJSONSchema(WriteCardsInputSchema, schemaOptions),
+        CardIdInput: toJSONSchema(CardIdInputSchema, schemaOptions),
+        SearchCardsInput: toJSONSchema(SearchCardsInputSchema, schemaOptions),
         LookupCategoriesResponse: {
           type: 'object',
           properties: {

@@ -236,13 +236,12 @@ export async function handleWriteCards(
   const runId = randomUUID();
   logger.info({ runId, cardCount: cards.length }, 'Starting write_cards execution');
   let generationRunCreated = false;
-  let generationRunIdForRevisions: string | null = null;
   let writtenCount = 0;
 
   try {
     const generationRunState = await createGenerationRun(supabase, runId);
     generationRunCreated = generationRunState.generationRunCreated;
-    generationRunIdForRevisions = generationRunState.generationRunIdForRevisions;
+    const generationRunIdForRevisions = generationRunState.generationRunIdForRevisions;
 
     const { results, errors, hadUnexpectedError } = await writeCardsBatch(
       supabase,

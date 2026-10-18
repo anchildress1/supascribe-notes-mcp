@@ -37,6 +37,16 @@ describe('createOpenApiSpec', () => {
     expect(spec.components.schemas.Card).toBeDefined();
     expect(spec.components.schemas.CardInput.properties.title.description).toBeDefined();
     expect(spec.components.schemas.CardInput.properties.deleted_at).toBeDefined();
+    expect(spec.components.schemas.CardInput.properties.url).toMatchObject({
+      type: 'string',
+      format: 'uri',
+    });
+    expect(spec.components.schemas.CardInput.properties.blurb.type).toEqual(['string', 'null']);
+    expect(spec.components.schemas.CardInput.required).not.toContain('projects');
+    expect(spec.components.schemas.CardInput.properties.signal).toMatchObject({
+      minimum: 1,
+      maximum: 10,
+    });
     expect(spec.components.schemas.CardInput.properties.tags.properties.lvl0.type).toBe('array');
     expect(spec.components.schemas.CardInput.properties.tags.properties.lvl1.type).toBe('array');
     expect(spec.components.schemas.CardInput.properties.tags.required).toEqual(
