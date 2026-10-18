@@ -15,7 +15,7 @@ const mockCards = [
     deleted_at: null,
   },
   {
-    objectID: '99999999-9999-9999-9999-999999999999',
+    objectID: '99999999-9999-4999-8999-999999999999',
     title: 'Another Card',
     blurb: 'Blurb 2',
     fact: 'Fact 2',
@@ -25,7 +25,7 @@ const mockCards = [
     deleted_at: null,
   },
   {
-    objectID: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+    objectID: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
     title: 'Deleted Card',
     blurb: 'Blurb 3',
     fact: 'Fact 3',
@@ -227,7 +227,7 @@ describe('Lookup Tools Integration', () => {
         'content-type': 'application/json',
       },
       body: {
-        ids: ['88888888-8888-8888-8888-888888888888', '99999999-9999-9999-9999-999999999999'],
+        ids: ['88888888-8888-8888-8888-888888888888', '99999999-9999-4999-8999-999999999999'],
       },
     });
 
@@ -237,7 +237,7 @@ describe('Lookup Tools Integration', () => {
     const ids = body.cards.map((card) => card.objectID).sort((a, b) => a.localeCompare(b));
     expect(ids).toEqual([
       '88888888-8888-8888-8888-888888888888',
-      '99999999-9999-9999-9999-999999999999',
+      '99999999-9999-4999-8999-999999999999',
     ]);
   });
 
@@ -250,7 +250,7 @@ describe('Lookup Tools Integration', () => {
         'content-type': 'application/json',
       },
       body: {
-        ids: ['88888888-8888-8888-8888-888888888888', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'],
+        ids: ['88888888-8888-8888-8888-888888888888', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'],
       },
     });
 
@@ -269,7 +269,7 @@ describe('Lookup Tools Integration', () => {
         'content-type': 'application/json',
       },
       body: {
-        ids: ['88888888-8888-8888-8888-888888888888', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'],
+        ids: ['88888888-8888-8888-8888-888888888888', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'],
         include_deleted: true,
       },
     });
@@ -278,7 +278,7 @@ describe('Lookup Tools Integration', () => {
     const body = res._getJSON() as { cards: Array<{ objectID: string }> };
     expect(body.cards).toHaveLength(2);
     const ids = body.cards.map((c) => c.objectID).sort((a, b) => a.localeCompare(b));
-    expect(ids).toContain('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
+    expect(ids).toContain('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
   });
 
   it('validates lookup_card_by_id input', async () => {
