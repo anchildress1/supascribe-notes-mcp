@@ -49,16 +49,16 @@
     "@types/node": "^24.13.0",
     "@types/pino": "^7.0.4",
     "@vitest/coverage-v8": "^5.0.5",
-    "commitlint-plugin-rai": "^1.0.1",
+    "commitlint-plugin-rai": "^1.0.3",
     "eslint": "^9.21.0",
     "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-prettier": "^5.5.5",
+    "eslint-plugin-prettier": "^5.5.7",
     "lefthook": "^1.11.0",
-    "prettier": "^3.5.0",
+    "prettier": "^3.9.10",
     "secretlint": "^11.3.0",
-    "tsx": "^4.19.0",
+    "tsx": "^4.23.15",
     "typescript": "^5.7.0",
-    "typescript-eslint": "^8.24.0",
+    "typescript-eslint": "^8.71.2",
     "vitest": "^5.0.5"
   }
 }
