@@ -7,7 +7,6 @@ export default defineConfig({
     include: ['tests/**/*.test.ts'],
     coverage: {
       provider: 'v8',
-      all: true,
       include: [
         'src/config.ts',
         'src/lib/auth-provider.ts',
