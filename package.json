@@ -45,7 +45,7 @@
     "@secretlint/secretlint-rule-preset-recommend": "^13.0.7",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
-    "@types/node": "^24.19.2",
+    "@types/node": "^26.6.5",
     "@vitest/coverage-v8": "^5.0.5",
     "commitlint-plugin-rai": "^1.0.3",
     "eslint": "^10.13.0",
