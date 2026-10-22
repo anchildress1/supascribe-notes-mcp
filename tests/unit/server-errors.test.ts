@@ -18,26 +18,30 @@ vi.mock('../../src/lib/supabase.js', () => ({
 }));
 
 vi.mock('../../src/lib/auth-provider.js', () => ({
-  SupabaseTokenVerifier: vi.fn().mockImplementation(() => ({
-    verifyAccessToken: vi.fn().mockResolvedValue({
-      sub: 'test-user',
-      email: 'test@example.com',
-      role: 'authenticated',
-    }),
-  })),
+  SupabaseTokenVerifier: vi.fn().mockImplementation(function () {
+    return {
+      verifyAccessToken: vi.fn().mockResolvedValue({
+        sub: 'test-user',
+        email: 'test@example.com',
+        role: 'authenticated',
+      }),
+    };
+  }),
 }));
 
 // Mock MCP Server
 vi.mock('@modelcontextprotocol/sdk/server/mcp.js', () => ({
-  McpServer: vi.fn().mockImplementation(() => ({
-    registerTool: vi.fn(),
-    connect: vi.fn().mockImplementation(async (transport) => {
-      await transport.start();
-    }),
-    server: {
-      setRequestHandler: vi.fn(),
-    },
-  })),
+  McpServer: vi.fn().mockImplementation(function () {
+    return {
+      registerTool: vi.fn(),
+      connect: vi.fn().mockImplementation(async (transport) => {
+        await transport.start();
+      }),
+      server: {
+        setRequestHandler: vi.fn(),
+      },
+    };
+  }),
 }));
 
 // Mock StreamableHTTPServerTransport
@@ -53,13 +57,15 @@ const mocks = vi.hoisted(() => {
 
 vi.mock('@modelcontextprotocol/sdk/server/streamableHttp.js', () => {
   return {
-    StreamableHTTPServerTransport: vi.fn().mockImplementation(() => ({
-      start: mocks.start,
-      handleRequest: mocks.handleRequest,
-      close: mocks.close,
-      sessionId: undefined,
-      onclose: vi.fn(),
-    })),
+    StreamableHTTPServerTransport: vi.fn().mockImplementation(function () {
+      return {
+        start: mocks.start,
+        handleRequest: mocks.handleRequest,
+        close: mocks.close,
+        sessionId: undefined,
+        onclose: vi.fn(),
+      };
+    }),
   };
 });
 

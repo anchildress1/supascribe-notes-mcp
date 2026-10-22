@@ -49,7 +49,7 @@ const resolveCorsOrigin = async (
   });
 };
 
-describe.sequential('CORS Integration', () => {
+describe('CORS Integration', { concurrent: false }, () => {
   const originalCorsOrigins = process.env['CORS_ORIGINS'];
 
   beforeEach(() => {
