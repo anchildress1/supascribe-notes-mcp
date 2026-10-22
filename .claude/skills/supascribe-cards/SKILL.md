@@ -91,7 +91,7 @@ Draft each decision card as fork (what was on the table) → call (which way the
 
 - 30–50 words. Under 30 → reject.
 - 1–3 sentences: claim → reasoning → stop. A fourth sentence means two cards; split.
-- First person, past tense. No `I` → re-check that it is a decision, not a system description.
+- First person, past tense. A status note may use present tense for the current state ("currently design-only"). No `I` → re-check that it is a decision, not a system description.
 - Never third person ("Ashley reframed it", "the author is a perfectionist").
 - No repo paths, "source of truth lives in", "see file X", or "rejected: A, B, C" lists.
 - No pitch: "the moat", "the differentiator", "deliberately rejects", "this is the advantage", or arguing with a skeptic ("Web search confirms the pattern is novel").
