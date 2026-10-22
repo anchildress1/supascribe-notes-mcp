@@ -240,14 +240,15 @@ Use only `lookup_categories` output; names drift between singular and plural and
 
 ### Update
 
-- Fetch the full record and resend `objectID`, `title`, `fact`, `tags`, `category`, `signal`, `projects`, and `url`. Omitted fields are not preserved. Omit `blurb`.
+- Fetch the record with `lookup_card_by_id` this session and copy every field verbatim: `objectID`, `title`, `fact`, `tags`, `category`, `signal`, `projects`, `url`. Change only the field being updated. Never rebuild a field from memory, a summary, an earlier message, or a subagent report. Not fetched this session → fetch again. Omit `blurb`.
 - Without `objectID`, `write_cards` creates a new card instead of updating; an unchanged title or fact then fails the UNIQUE check.
 - Use only UUIDs returned by a tool call this session. A UUID missing from a lookup → find the card by content search; never retry the ID.
 
-### Bulk metadata — `signal`, `deleted_at`, tags only
+### Bulk metadata — `signal`, `deleted_at`, tags
 
-- Prefer direct SQL; retyping facts through `write_cards` risks silent corruption.
-- Tell the user first that SQL bypasses `card_revisions` and leaves no audit trail.
+- Route every write through `write_cards`. Direct SQL skips the app's validation of tags, categories, signal range, and field shape, and skips `card_revisions`, the corpus's only history.
+- Copy fields verbatim per Update. Write in batches ≤ 50. Report values read back, not values intended.
+- Schema rejects a card → report the constraint and stop. Never alter the database to make a card fit.
 - Never apply DDL without asking. Migrations live in the repository.
 
 ### Delete
