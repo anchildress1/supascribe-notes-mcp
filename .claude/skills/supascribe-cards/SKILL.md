@@ -9,7 +9,7 @@ Call `write_cards` only when every gate holds:
 2. The user confirmed every proposed title and fact in chat.
 3. Every category is in `lookup_categories` output.
 4. Every lvl0/lvl1 tag is in `lookup_tags` output.
-5. Every card passes the decision test and the fact constraints.
+5. Every card passes the decision test, or qualifies as a fact of experience or a status note, and meets the fact constraints.
 6. No fact names its own virtue.
 7. Every claim traces to a user turn, not an assistant's summary.
 
@@ -34,7 +34,7 @@ Discard every row with non-null `deleted_at` from calibration and audits. Duplic
 
 ## Decision test
 
-Pass only if something was decided and the card says why, backed by pointable evidence: an incident, artifact, number, named alternative, or dated event. Naming the project is not evidence — "In SupaScribe Notes MCP, I avoid workarounds" fails.
+A decision card passes only if something was decided and the card says why, backed by pointable evidence: an incident, artifact, number, named alternative, or dated event. Naming the project is not evidence — "In SupaScribe Notes MCP, I avoid workarounds" fails.
 
 Draft each decision card as fork (what was on the table) → call (which way the user went) → cost (why the rejected path lost). No fork → no decision card. Never invent a fork. Never label the slots in the fact. Fact-of-experience cards and status notes need no fork.
 
