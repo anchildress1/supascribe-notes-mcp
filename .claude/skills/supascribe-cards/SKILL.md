@@ -36,7 +36,7 @@ Discard every row with non-null `deleted_at` from calibration, duplicate checks,
 
 Pass only if something was decided and the card says why, backed by pointable evidence: an incident, artifact, number, named alternative, or dated event. Naming the project is not evidence — "In SupaScribe Notes MCP, I avoid workarounds" fails.
 
-Draft each card as fork (what was on the table) → call (which way the user went) → cost (why the rejected path lost). No fork → no card. Never invent a fork. Never label the slots in the fact.
+Draft each decision card as fork (what was on the table) → call (which way the user went) → cost (why the rejected path lost). No fork → no decision card. Never invent a fork. Never label the slots in the fact. Fact-of-experience cards and status notes need no fork.
 
 ### Accept
 
@@ -69,7 +69,7 @@ Draft each card as fork (what was on the table) → call (which way the user wen
 
 ### Zero cards
 
-- No fork in the material → say so and stop.
+- No fork and no fact of experience in the material → say so and stop.
 - Never reframe rejected material until it passes, downgrade it to a status note, or offer a weaker card as consolation.
 - Apply a user's rejection to the neighbouring candidates. Three rejections in a row means the source has no fork.
 
