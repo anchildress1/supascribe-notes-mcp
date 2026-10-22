@@ -135,11 +135,11 @@ Public URLs only: standards, articles, registry sites, DEV announcement posts.
 
 `title`, `blurb`, and `fact` are UNIQUE. Soft-deleted rows keep their values reserved but are invisible to `search_cards`.
 
-| Check                 | Method                                        | Result                                  |
-| --------------------- | --------------------------------------------- | --------------------------------------- |
-| Within a batch        | Compare all three fields pairwise             | Reliable                                |
-| Against live cards    | `search_cards` on the most distinctive phrase | Loose — read the hits, never trust zero |
-| Against deleted cards | None available                                | Blind spot                              |
+| Check                 | Method                                                           | Result                                  |
+| --------------------- | ---------------------------------------------------------------- | --------------------------------------- |
+| Within a batch        | Compare all three fields pairwise                                | Reliable                                |
+| Against live cards    | `search_cards` on the most distinctive phrase                    | Loose — read the hits, never trust zero |
+| Against deleted cards | `lookup_card_by_id` with `include_deleted: true`, known IDs only | Blind spot for content                  |
 
 - On an update, a match on the same `objectID` is expected; a different `objectID` is a collision.
 - A candidate reusing phrasing that may have existed before (rewrite of a deleted card, recycled title, boilerplate) → write it alone in its own call. A failed single write is a collision.
@@ -244,7 +244,7 @@ Use only `lookup_categories` output; names drift between singular and plural and
 - Without `objectID`, `write_cards` creates a new card instead of updating; an unchanged title or fact then fails the UNIQUE check.
 - Omitting a field: `blurb` → null; `projects` → `[]`; `url`, `deleted_at`, `created_at` → stored value kept. `write_cards` cannot clear `url` or `deleted_at`; say so instead of reporting it done.
 - Metadata-only change (`signal`, tags, `category`, `deleted_at`): show each `objectID`, title, and exact field change for confirmation. Unchanged titles and facts are payload, not proposals; never redraft or re-approve them.
-- Use only UUIDs returned by a tool call this session. A UUID missing from a lookup → find the card by content search; never retry the ID.
+- Use only UUIDs returned by a tool call this session. A UUID missing from a lookup → re-run `lookup_card_by_id` with `include_deleted: true`; still missing → find the card by content search. Never retype an ID by hand.
 
 ### Bulk metadata — `signal`, `deleted_at`, tags
 
@@ -256,6 +256,7 @@ Use only `lookup_categories` output; names drift between singular and plural and
 ### Delete
 
 - Soft delete by setting `deleted_at` to an ISO-8601 UTC timestamp. Only on the user's decision; propose, never execute unasked.
+- Read deletes back with `lookup_card_by_id` and `include_deleted: true`. Every default read path excludes the row just deleted.
 - The site's Algolia index updates only on a manual push. Report deletes as pending until it runs.
 
 ### Verify payloads
