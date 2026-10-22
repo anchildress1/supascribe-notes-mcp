@@ -224,7 +224,8 @@ Use only `lookup_categories` output; names drift between singular and plural and
 
 ### Update
 
-- Fetch the full record and resend `title`, `fact`, `tags`, `category`, `signal`, `projects`, and `url`. Omitted fields are not preserved. Omit `blurb`.
+- Fetch the full record and resend `objectID`, `title`, `fact`, `tags`, `category`, `signal`, `projects`, and `url`. Omitted fields are not preserved. Omit `blurb`.
+- Without `objectID`, `write_cards` creates a new card instead of updating; an unchanged title or fact then fails the UNIQUE check.
 - Use only UUIDs returned by a tool call this session. A UUID missing from a lookup → find the card by content search; never retry the ID.
 
 ### Bulk metadata — `signal`, `deleted_at`, tags only
