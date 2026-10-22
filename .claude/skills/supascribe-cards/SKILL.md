@@ -135,11 +135,11 @@ The MCP `search_cards` `fact` filter is separate: it matches `title`, `blurb`, a
 
 ## Uniqueness
 
-`title`, `blurb`, and `fact` are UNIQUE. Soft-deleted rows keep their values reserved but are invisible to `search_cards`.
+`title`, `blurb`, and `fact` are UNIQUE. Null blurbs never collide. Soft-deleted rows keep their values reserved but are invisible to `search_cards`.
 
 | Check                 | Method                                                           | Result                                  |
 | --------------------- | ---------------------------------------------------------------- | --------------------------------------- |
-| Within a batch        | Compare all three fields pairwise                                | Reliable                                |
+| Within a batch        | Compare `title`, `fact`, and non-null `blurb` pairwise           | Reliable                                |
 | Against live cards    | `search_cards` on the most distinctive phrase                    | Loose — read the hits, never trust zero |
 | Against deleted cards | `lookup_card_by_id` with `include_deleted: true`, known IDs only | Blind spot for content                  |
 
