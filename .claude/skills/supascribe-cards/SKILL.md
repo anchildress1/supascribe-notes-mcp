@@ -30,7 +30,7 @@ Never call `write_cards` during an audit. Reporting zero cards is a valid result
 | `lookup_tags`       | Only legal lvl0/lvl1 values. Needed tag absent → surface it and stop.     |
 | `search_cards`      | Sample 5–10 live cards per target category for calibration.               |
 
-Discard every row with non-null `deleted_at` from calibration, duplicate checks, and audits.
+Discard every row with non-null `deleted_at` from calibration and audits. Duplicate checks follow Uniqueness.
 
 ## Decision test
 
@@ -130,7 +130,23 @@ Public URLs only: standards, articles, registry sites, DEV announcement posts.
 | `fact`      | ❌         | —     |
 
 - `signal` is a hidden sort key, descending. `created_at_epoch` breaks ties.
-- `title`, `blurb`, and `fact` are UNIQUE. Near-duplicates differing by one word exist to dodge it; differing text never proves two cards distinct.
+
+## Uniqueness
+
+`title`, `blurb`, and `fact` are UNIQUE. Soft-deleted rows keep their values reserved but are invisible to `search_cards`.
+
+| Check                 | Method                                        | Result                                  |
+| --------------------- | --------------------------------------------- | --------------------------------------- |
+| Within a batch        | Compare all three fields pairwise             | Reliable                                |
+| Against live cards    | `search_cards` on the most distinctive phrase | Loose — read the hits, never trust zero |
+| Against deleted cards | None available                                | Blind spot                              |
+
+- On an update, a match on the same `objectID` is expected; a different `objectID` is a collision.
+- A candidate reusing phrasing that may have existed before (rewrite of a deleted card, recycled title, boilerplate) → write it alone in its own call. A failed single write is a collision.
+- `write_cards` writes each card independently, so a failed batch can be partially written. Re-read every card in it before retrying.
+- Surface collisions. Never paraphrase to dodge the constraint. Never change the matching card without confirmation.
+- Report that deleted-row collisions went unchecked.
+- Near-duplicates differing by one word exist to dodge the constraint; differing text never proves two cards distinct.
 
 ## Atomicity and duplication
 
