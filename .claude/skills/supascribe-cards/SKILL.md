@@ -95,7 +95,7 @@ Draft each decision card as fork (what was on the table) → call (which way the
 - Never third person ("Ashley reframed it", "the author is a perfectionist").
 - No repo paths, "source of truth lives in", "see file X", or "rejected: A, B, C" lists.
 - No pitch: "the moat", "the differentiator", "deliberately rejects", "this is the advantage", or arguing with a skeptic ("Web search confirms the pattern is novel").
-- `fact` is not keyword-searchable. Write it for a model that already retrieved the card.
+- `fact` is not keyword-searchable on the site. Write it for a model that already retrieved the card.
 
 Accept:
 
@@ -118,7 +118,9 @@ Voice to match: "I separated telemetry from identity data." · "I capped the age
 
 Public URLs only: standards, articles, registry sites, DEV announcement posts.
 
-## Index behavior
+## Site index (Algolia)
+
+The MCP `search_cards` `fact` filter is separate: it matches `title`, `blurb`, and `fact`.
 
 | Field       | Searchable | Facet |
 | ----------- | ---------- | ----- |
