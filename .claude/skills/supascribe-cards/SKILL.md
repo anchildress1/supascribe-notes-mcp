@@ -134,7 +134,7 @@ Public URLs only: standards, articles, registry sites, DEV announcement posts.
 
 ## Atomicity and duplication
 
-- One claim per card. Decision + rationale + rejected alternative + footnote = 3–4 cards. Default to splitting.
+- One claim per card. A decision, its rationale, and its rejected alternative are one claim; keep them together. Split out every independent claim, such as an architectural footnote that stands alone. Default to splitting independent claims.
 - Same claim twice in one project → cut one.
 - Same claim across projects → keep both; repetition across projects is the proof. Rewrite each with its own project's specifics. Never demote or delete for cross-project repetition.
 - Before drafting, count live cards in the same project carrying the claim. One or more → the candidate needs a different claim. A user restating a familiar trait wants emphasis; card the occasion that trait was contradicted instead.
