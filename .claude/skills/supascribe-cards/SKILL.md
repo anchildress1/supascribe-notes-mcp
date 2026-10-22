@@ -6,7 +6,7 @@ description: "Invoke for any operation on the user's Supascribe index card syste
 Call `write_cards` only when every gate holds:
 
 1. Pre-flight ran this session.
-2. The user confirmed every proposed title and fact in chat.
+2. The user confirmed every new or changed title and fact in chat.
 3. Every category is in `lookup_categories` output.
 4. Every lvl0/lvl1 tag is in `lookup_tags` output.
 5. Every card passes the decision test, or qualifies as a fact of experience or a status note, and meets the fact constraints.
@@ -242,6 +242,8 @@ Use only `lookup_categories` output; names drift between singular and plural and
 
 - Fetch the record with `lookup_card_by_id` this session and copy every field verbatim: `objectID`, `title`, `fact`, `tags`, `category`, `signal`, `projects`, `url`. Change only the field being updated. Never rebuild a field from memory, a summary, an earlier message, or a subagent report. Not fetched this session → fetch again. Omit `blurb`.
 - Without `objectID`, `write_cards` creates a new card instead of updating; an unchanged title or fact then fails the UNIQUE check.
+- Omitting a field: `blurb` → null; `projects` → `[]`; `url`, `deleted_at`, `created_at` → stored value kept. `write_cards` cannot clear `url` or `deleted_at`; say so instead of reporting it done.
+- Metadata-only change (`signal`, tags, `category`, `deleted_at`): show each `objectID`, title, and exact field change for confirmation. Unchanged titles and facts are payload, not proposals; never redraft or re-approve them.
 - Use only UUIDs returned by a tool call this session. A UUID missing from a lookup → find the card by content search; never retry the ID.
 
 ### Bulk metadata — `signal`, `deleted_at`, tags
