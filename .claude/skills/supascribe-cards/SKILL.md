@@ -268,12 +268,11 @@ Use only `lookup_categories` output; names drift between singular and plural and
 ## Audit
 
 1. Group by cohort first — creation date, category, project, signal distribution, word count. Quality tracks write date.
-2. Fetch per project or tag via `search_cards`. Skip deleted rows.
+2. Fetch per project or tag via `search_cards`.
 3. Apply the decision test, fact constraints, virtue rule, dated truth, and Restraint rule.
 4. Report violators grouped by project: title + objectID + one-line reason.
 5. List close calls separately with both readings. Never resolve them.
 6. Before calling a card false, check whether it was true when written.
-7. Never call `write_cards`.
 
 ## Fuzzy requests
 
