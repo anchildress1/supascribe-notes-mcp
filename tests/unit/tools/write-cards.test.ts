@@ -1,3 +1,4 @@
+import { setImmediate } from 'node:timers/promises';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { CardInput } from '../../../src/schemas/card.js';
@@ -119,6 +120,62 @@ describe('handleWriteCards', () => {
     const body = asTextJson(result);
 
     expect((body.results as Array<{ status: string }>)?.[0]?.status).toBe('updated');
+  });
+
+  it('finishes each duplicate objectID write and revision before reading its next version', async () => {
+    const firstWrite = Promise.withResolvers<void>();
+    const firstRevision = Promise.withResolvers<void>();
+    const objectID = '550e8400-e29b-41d4-a716-446655440000';
+    let stored: { objectID: string; title: string } | null = null;
+    const revisions: string[] = [];
+    const upsertMock = vi
+      .fn()
+      .mockImplementation(async (row: { objectID: string; title: string }) => {
+        if (row.title === 'First version') await firstWrite.promise;
+        stored = row;
+        return { error: null };
+      });
+    const supabase = createSupabaseHarness({ upsertMock });
+    supabase._mocks.maybeSingleMock.mockImplementation(() =>
+      Promise.resolve({ data: stored, error: null }),
+    );
+    supabase._mocks.cardRevisionsInsertMock.mockImplementation(
+      async ({ revision_data }: { revision_data: { title: string } }) => {
+        if (revision_data.title === 'First version') await firstRevision.promise;
+        revisions.push(revision_data.title);
+        return { error: null };
+      },
+    );
+
+    const pending = handleWriteCards(supabase, [
+      { ...validCard, objectID, title: 'First version' },
+      { ...validCard, objectID, title: 'Second version' },
+    ]);
+    // Let every runnable operation proceed while the first durable write is still pending.
+    await setImmediate();
+    expect(upsertMock).toHaveBeenCalledTimes(1);
+    expect(supabase._mocks.maybeSingleMock).toHaveBeenCalledTimes(1);
+    expect(supabase._mocks.cardRevisionsInsertMock).not.toHaveBeenCalled();
+
+    firstWrite.resolve();
+    await setImmediate();
+    expect(supabase._mocks.cardRevisionsInsertMock).toHaveBeenCalledTimes(1);
+    expect(supabase._mocks.maybeSingleMock).toHaveBeenCalledTimes(1);
+    expect(supabase._mocks.generationRunsUpdateMock).not.toHaveBeenCalled();
+
+    firstRevision.resolve();
+    const body = asTextJson(await pending);
+    expect(body).toMatchObject({
+      written: 2,
+      errors: 0,
+      results: [
+        { objectID, title: 'First version', status: 'created' },
+        { objectID, title: 'Second version', status: 'updated' },
+      ],
+    });
+    expect(stored).toMatchObject({ objectID, title: 'Second version' });
+    expect(revisions).toEqual(['First version', 'Second version']);
+    expect(upsertMock).toHaveBeenCalledTimes(2);
   });
 
   it('handles upsert failure gracefully', async () => {
