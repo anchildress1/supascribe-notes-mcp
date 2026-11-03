@@ -213,18 +213,23 @@ async function writeCardsBatch(
   const errors: string[] = [];
   let hadUnexpectedError = false;
 
+  let pending = Promise.resolve();
   for (const card of cards) {
-    const outcome = await writeSingleCard(supabase, runId, card, generationRunIdForRevisions);
-    if (outcome.result) {
-      results.push(outcome.result);
-    }
-    if (outcome.error) {
-      errors.push(outcome.error);
-    }
-    if (outcome.hadUnexpectedError) {
-      hadUnexpectedError = true;
-    }
+    // A later card can overwrite the same objectID; its read must follow the prior revision.
+    pending = pending.then(async () => {
+      const outcome = await writeSingleCard(supabase, runId, card, generationRunIdForRevisions);
+      if (outcome.result) {
+        results.push(outcome.result);
+      }
+      if (outcome.error) {
+        errors.push(outcome.error);
+      }
+      if (outcome.hadUnexpectedError) {
+        hadUnexpectedError = true;
+      }
+    });
   }
+  await pending;
 
   return { results, errors, hadUnexpectedError };
 }
