@@ -178,6 +178,46 @@ describe('handleWriteCards', () => {
     expect(upsertMock).toHaveBeenCalledTimes(2);
   });
 
+  it.each(['error', 'rejection'] as const)(
+    'continues in input order after a pending write returns an %s',
+    async (failure) => {
+      const firstWrite = Promise.withResolvers<UpsertResult>();
+      const supabase = createSupabaseHarness();
+      supabase._mocks.upsertMock
+        .mockImplementationOnce(() => firstWrite.promise)
+        .mockResolvedValue({ error: null });
+      const pending = handleWriteCards(supabase, [
+        { ...validCard, title: 'Failed card' },
+        { ...validCard, title: 'Next card' },
+      ]);
+      await setImmediate();
+      expect(supabase._mocks.maybeSingleMock).toHaveBeenCalledTimes(1);
+      expect(supabase._mocks.upsertMock).toHaveBeenCalledTimes(1);
+      expect(supabase._mocks.generationRunsUpdateMock).not.toHaveBeenCalled();
+
+      if (failure === 'rejection') firstWrite.reject(new Error('write unavailable'));
+      else firstWrite.resolve({ error: { message: 'write unavailable' } });
+      const result = await pending;
+      expect(asTextJson(result)).toMatchObject({
+        written: 1,
+        errors: 1,
+        error_details: ['Card "Failed card": write unavailable'],
+        results: [{ title: 'Next card', status: 'created' }],
+      });
+      expect(result.isError).toBe(false);
+      expect(supabase._mocks.upsertMock.mock.calls.map(([row]) => row.title)).toEqual([
+        'Failed card',
+        'Next card',
+      ]);
+      expect(supabase._mocks.cardRevisionsInsertMock).toHaveBeenCalledTimes(1);
+      expect(supabase._mocks.generationRunsUpdateMock).toHaveBeenCalledWith({
+        cards_written: 1,
+        status: 'partial',
+        error: 'Card "Failed card": write unavailable',
+      });
+    },
+  );
+
   it('handles upsert failure gracefully', async () => {
     const supabase = createSupabaseHarness({
       upsertResult: { error: { message: 'Constraint violation' } },
